@@ -6,7 +6,7 @@ from sklearn.metrics import f1_score, precision_score, recall_score
 import community as community_louvain
 import random
 from tqdm import tqdm
-import metispy as metis
+import metis
 
 import torch_geometric
 def split_communities(data, clients):

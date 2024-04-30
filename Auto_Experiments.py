@@ -41,8 +41,6 @@ poisoning_intensity = 0.1
 checkpoints_filename = "./checkpoints/Graph"
 device_id = 1
 
-
-
 Current_exp_name = "poisoning_intensity"
 
 Experiment_list = ["epoch_backdoor","frac_of_avg","trigger_type","trigger_position","poisoning_intensity"]

@@ -10,7 +10,6 @@ contourpy==1.0.7
 cryptography==38.0.4
 cycler==0.11.0
 Cython==0.29.33
-dgl==1.0.1+cu116
 docker-pycreds==0.4.0
 Flask==2.2.3
 fonttools==4.39.0
@@ -44,7 +43,6 @@ pip==22.3.1
 protobuf==4.22.3
 psutil==5.9.4
 pycparser==2.21
-pyg-lib==0.1.0+pt113cu117
 pyOpenSSL==22.0.0
 pyparsing==3.0.9
 PySocks==1.7.1
@@ -62,11 +60,6 @@ six==1.16.0
 smmap==5.0.0
 termcolor==2.2.0
 threadpoolctl==3.1.0
-torch==1.13.1
-torch-cluster==1.6.0+pt113cu117
-torch-geometric==2.2.0
-torch-scatter==2.1.0+pt113cu117
-torch-sparse==0.6.16+pt113cu117
 torch-spline-conv==1.2.1+pt113cu117
 torchvision==0.14.1
 tqdm==4.64.1

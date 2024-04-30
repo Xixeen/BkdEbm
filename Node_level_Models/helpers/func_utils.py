@@ -11,7 +11,6 @@ def edge_sim_analysis(edge_index, features):
     sims = np.array(sims)
     # print(f"mean: {sims.mean()}, <0.1: {sum(sims<0.1)}/{sims.shape[0]}")
     return sims
-
 def prune_unrelated_edge(args,edge_index,edge_weights,x,device,large_graph=True):
     edge_index = edge_index[:,edge_weights>0.0].to(device)
     edge_weights = edge_weights[edge_weights>0.0].to(device)
@@ -38,7 +37,6 @@ def prune_unrelated_edge(args,edge_index,edge_weights,x,device,large_graph=True)
     updated_edge_index = edge_index[:,edge_sims>args.prune_thr]
     updated_edge_weights = edge_weights[edge_sims>args.prune_thr]
     return updated_edge_index,updated_edge_weights
-
 def prune_unrelated_edge_isolated(args,edge_index,edge_weights,x,device,large_graph=True):
     edge_index = edge_index[:,edge_weights>0.0].to(device)
     edge_weights = edge_weights[edge_weights>0.0].to(device)
@@ -72,7 +70,6 @@ def prune_unrelated_edge_isolated(args,edge_index,edge_weights,x,device,large_gr
     updated_edge_index = edge_index[:,edge_weights>0.0]
     updated_edge_weights = edge_weights[edge_weights>0.0]
     return updated_edge_index,updated_edge_weights,dissim_nodes
-
 def select_target_nodes(args,seed,model,features,edge_index,edge_weights,labels,idx_val,idx_test):
     test_ca,test_correct_index = model.test_with_correct_nodes(features,edge_index,edge_weights,labels,idx_test)
     test_correct_index = test_correct_index.tolist()
@@ -96,7 +93,6 @@ def select_target_nodes(args,seed,model,features,edge_index,edge_weights,labels,
     poi_train_nodes = rs.choice(cand_poi_train_nodes, poison_nodes_num)
 
     return atk_test_nodes, clean_test_nodes,poi_train_nodes
-
 def normalize(mx):
     """Row-normalize sparse matrix"""
     rowsum = np.array(mx.sum(1))
@@ -105,7 +101,6 @@ def normalize(mx):
     r_mat_inv = sp.diags(r_inv)
     mx = r_mat_inv.dot(mx)
     return mx
-
 def normalize_adj(adj):
     """Symmetrically normalize adjacency matrix."""
     adj = sp.coo_matrix(adj)
@@ -114,11 +109,9 @@ def normalize_adj(adj):
     d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
     d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
     return adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt).tocsr()
-
 #%%
 import torch
 import numpy as np
-
 def tensor2onehot(labels):
     """Convert label tensor to label onehot tensor.
     Parameters
@@ -134,7 +127,6 @@ def tensor2onehot(labels):
     eye = torch.eye(labels.max() + 1)
     onehot_mx = eye[labels]
     return onehot_mx.to(labels.device)
-
 def accuracy(output, labels):
     """Return accuracy of output compared to labels.
     Parameters
@@ -184,7 +176,6 @@ def sys_normalized_adjacency(adj):
 def subgraph(subset,edge_index, edge_attr = None, relabel_nodes: bool = False):
     """Returns the induced subgraph of :obj:`(edge_index, edge_attr)`
     containing the nodes in :obj:`subset`.
-
     Args:
         subset (LongTensor, BoolTensor or [int]): The nodes to keep.
         edge_index (LongTensor): The edge indices.
@@ -198,16 +189,13 @@ def subgraph(subset,edge_index, edge_attr = None, relabel_nodes: bool = False):
 
     :rtype: (:class:`LongTensor`, :class:`Tensor`)
     """
-
     device = edge_index.device
 
     node_mask = subset
 
-
     edge_mask = node_mask[edge_index[0]] & node_mask[edge_index[1]]
 
     edge_index = edge_index[:, edge_mask]
-
 
     edge_attr = edge_attr[edge_mask] if edge_attr is not None else None
 
@@ -217,10 +205,8 @@ def subgraph(subset,edge_index, edge_attr = None, relabel_nodes: bool = False):
     #     node_idx[subset] = torch.arange(subset.sum().item(), device=device)
     #     edge_index = node_idx[edge_index]
 
-
     return edge_index, edge_attr, edge_mask
 # %%
-
 def get_split(args,data, device):
     rs = np.random.RandomState(args.seed)
     perm = rs.permutation(data.num_nodes)
@@ -233,7 +219,6 @@ def get_split(args,data, device):
     idx_val = torch.tensor(sorted(perm[train_number:train_number+val_number])).to(device)
     data.val_mask = torch.zeros_like(data.val_mask)
     data.val_mask[idx_val] = True
-
 
     test_number = int(args.ratio_testing*len(perm))
     idx_test = torch.tensor(sorted(perm[train_number+val_number:train_number+val_number+test_number])).to(device)

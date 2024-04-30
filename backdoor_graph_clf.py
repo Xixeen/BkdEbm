@@ -19,7 +19,6 @@ def server_robust_agg(args, grad):  ## server aggregation
     grad_in = np.array(grad).reshape((args.num_workers, -1)).mean(axis=0)
     return grad_in.tolist()
 
-
 class ClearDenseClient(WorkerBase):
     def __init__(self, client_id, model, loss_func, train_iter, attack_iter, test_iter, config, optimizer, device,
                  grad_stub, args, scheduler):
@@ -34,12 +33,10 @@ class ClearDenseClient(WorkerBase):
     def update(self):
         pass
 
-
 class DotDict(dict):
     def __init__(self, **kwds):
         self.update(kwds)
         self.__dict__ = self
-
 
 def main(args, logger):
     np.random.seed(args.seed)

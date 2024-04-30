@@ -4,7 +4,7 @@ from torch import nn
 import json
 import os
 from Graph_level_Models.helpers.config import args_parser
-from Graph_level_Models.datasets.gnn_util import    split_dataset
+from Graph_level_Models.datasets.gnn_util import split_dataset
 from Graph_level_Models.datasets.TUs import TUsDataset
 from Graph_level_Models.nets.TUs_graph_classification.load_net import gnn_model
 from Graph_level_Models.helpers.evaluate import gnn_evaluate_accuracy
@@ -12,11 +12,9 @@ import numpy as np
 from torch.utils.data import DataLoader
 import copy
 
-
 def server_robust_agg(args, grad):  ## server aggregation
     grad_in = np.array(grad).reshape((args.num_workers, -1)).mean(axis=0)
     return grad_in.tolist()
-
 
 class ClearDenseClient(WorkerBase):
     def __init__(self, client_id, model, loss_func, train_iter, attack_iter, test_iter, config, optimizer, device,
@@ -28,16 +26,13 @@ class ClearDenseClient(WorkerBase):
         self.grad_stub = None
         self.args = args
         self.scheduler = scheduler
-
     def update(self):
         pass
-
 
 class DotDict(dict):
     def __init__(self, **kwds):
         self.update(kwds)
         self.__dict__ = self
-
 
 def main(args, logger):
     np.random.seed(args.seed)
@@ -48,7 +43,6 @@ def main(args, logger):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     torch.cuda.set_device(args.device_id)
     dataset = TUsDataset(args)
-
     collate = dataset.collate
     MODEL_NAME = config['model']
     net_params = config['net_params']
@@ -61,7 +55,6 @@ def main(args, logger):
     num_classes = torch.max(dataset.all.graph_labels).item() + 1
     net_params['n_classes'] = num_classes
     net_params['dropout'] = args.dropout
-
     model = gnn_model(MODEL_NAME, net_params)
 
     # print("Target Model:\n{}".format(model))
@@ -80,7 +73,6 @@ def main(args, logger):
         local_model = local_model.to(device)
         optimizer = torch.optim.Adam(local_model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer=optimizer, step_size=args.step_size, gamma=args.gamma)
-
         train_dataset = partition[i]
         test_dataset = partition[args.num_workers + i]
 
@@ -105,9 +97,6 @@ def main(args, logger):
         print('model {} address: {}'.format(i, add_m))
         print('optimizer {} address: {}'.format(i, add_o))
 
-
-
-
     weight_history = []
     for epoch in range(args.epochs):
         print('epoch:', epoch)
@@ -125,7 +114,6 @@ def main(args, logger):
             print('Client %d, loss %.4f, train acc %.3f, test loss %.4f, test acc %.3f'
                   % (i, train_loss, train_acc, test_loss, test_acc))
 
-
             # save worker results
             for ele in worker_results[f"client_{i}"]:
                 if ele == "train_loss":
@@ -136,8 +124,6 @@ def main(args, logger):
                     worker_results[f"client_{i}"][ele] = test_loss
                 elif ele == "test_acc":
                     worker_results[f"client_{i}"][ele] = test_acc
-
-
 
         # wandb logger
         logger.log(worker_results)
@@ -160,8 +146,6 @@ def main(args, logger):
         test_acc = gnn_evaluate_accuracy(client[0].test_iter, client[0].model)
         print('Global Test Acc: %.3f' % test_acc)
 
-
-
     # clean accuracy
     # average all the workers
     all_clean_acc_list = []
@@ -172,13 +156,7 @@ def main(args, logger):
 
     average_all_clean_acc = np.mean(np.array(all_clean_acc_list))
 
-
-
-
     return average_all_clean_acc
-
-
-
 
 if __name__ == '__main__':
     main()

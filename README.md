@@ -7,9 +7,6 @@ To address these limitations, we propose a benchmark, Bkd-FedGNN, for graph back
 
 ![Framework](/figs/Architechture.png)
 
-
-
-
 ## Threat Model
 We consider the most widely studied setting:
 ### Attack Objective: 
@@ -22,13 +19,10 @@ We consider the most widely studied setting:
 
 The malicious client has the ability to inject triggers into the training datasets, but this capability is limited within predetermined constraints such as trigger size and poisoned data rate. The intention is to contaminate the training datasets. However, the malicious client lacks the ability to manipulate the server-side aggregation process or interfere with other clients' training processes and models.
 
-
-
 ## Dataset
 We consider the most widely studied datasets:
 - **Node level:** `Cora`, `Citeseer`, `CS`,`Physics`, `Photo`, `Computers`
 - **Graph level:** `AIDS`,`NCI1`,`PROTEINS_full`,`DD`, `ENZYMES` ,  `COLORS-3`
-
 
 ## GCN Model
 We consider the most widely studied GCN models:
@@ -36,10 +30,7 @@ We consider the most widely studied GCN models:
 - **GAT**.
 - **GraphSAGE**.
 
-
-
 ## Graph Backdoor attacks on  Node Classification in Federated GNNs
-
 
 ###  Backdoor attack  in Federated GNNs
 ```
@@ -55,7 +46,6 @@ python run_node_exps.py  --model GCN\
                          --poisoning_intensity 0.1\
                          --overlapping_rate 0.0
 ```
-
 
 ###  Backdoor attack  in Federated GNNs on other federated algorithms and defense methods
 

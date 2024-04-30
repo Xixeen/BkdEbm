@@ -7,7 +7,6 @@ from torch_geometric.utils import scatter
 from torch_geometric.datasets import Planetoid,Reddit2,Flickr,Reddit,Yelp
 from torch_geometric.datasets import Coauthor, Amazon
 from torch_geometric.utils import to_undirected
-
 import Node_level_Models.helpers.selection_utils  as hs
 from Node_level_Models.helpers.func_utils import subgraph,get_split
 from Node_level_Models.helpers.split_graph_utils import split_Random, split_Louvain, split_Metis
@@ -18,13 +17,11 @@ from Node_level_Models.aggregators.aggregation import scaffold,init_control
 
 def update_global(global_model, delta_models,args):
     state_dict = {}
-
     for name, param in global_model.state_dict().items():
         vs = []
         for client in delta_models.keys():
             vs.append(delta_models[client][name])
         vs = torch.stack(vs, dim=0)
-
         try:
             mean_value = vs.mean(dim=0)
             vs = param - args.glo_lr * mean_value
@@ -33,9 +30,7 @@ def update_global(global_model, delta_models,args):
             mean_value = (1.0 * vs).mean(dim=0).long()
             vs = param - args.glo_lr * mean_value
             vs = vs.long()
-
         state_dict[name] = vs
-
     global_model.load_state_dict(state_dict, strict=True)
     return global_model
 def update_global_control(control, delta_controls):
@@ -97,7 +92,6 @@ def main(args, logger):
     elif (args.dataset in Amazon_list):
         dataset = Amazon(root='./data/',name =args.dataset,  \
                           transform=T.NormalizeFeatures())
-
 
     print(f'Dataset: {dataset}:')
     print('======================')
@@ -294,11 +288,8 @@ def main(args, logger):
     print("rs",rs)
     args.epoch_backdoor = int(args.epoch_backdoor * args.epochs)
     print('======================Start Training Model========================================')
-
-
     # control variates
     server_control = init_control(global_model, device)
-
     client_controls = {
         id: init_control(global_model, device)
         for id, client in enumerate(model_list)
@@ -331,7 +322,8 @@ def main(args, logger):
                                                                           args = args,
                                                                           idx_val=client_idx_val[j].to(device),
                                                                           train_iters=args.inner_epochs)
-
+                    torch.save(model_list[j].state_dict(), f'save_models/Malicious_client_model_{j}_epoch_{epoch}.pth')
+                    print(f"Malicious_client_model_{j}_epoch_{epoch} saved")
                     client_controls[j] = copy.deepcopy(client_control)
                     delta_models[j] = copy.deepcopy(delta_model)
                     delta_controls[j] = copy.deepcopy(delta_control)
@@ -349,8 +341,6 @@ def main(args, logger):
                 else:
                     #client_train_edge_index
                     train_edge_weights = torch.ones([client_train_edge_index[j].shape[1]]).to(device)
-
-
                     loss_train, loss_val, acc_train, acc_val,\
                     client_control, delta_control, delta_model = scaffold(global_model,
                                                                           server_control,
@@ -364,7 +354,8 @@ def main(args, logger):
                                                                           args = args,
                                                                           idx_val= client_idx_val[j].to(device),
                                                                           train_iters=args.inner_epochs)
-
+                    torch.save(model_list[j].state_dict(), f'save_models/Clean_client_model_{j}_epoch_{epoch}.pth')
+                    print(f"Clean_client_model_{j}_epoch_{epoch} saved")
                     client_controls[j] = copy.deepcopy(client_control)
                     delta_models[j] = copy.deepcopy(delta_model)
                     delta_controls[j] = copy.deepcopy(delta_control)
@@ -413,14 +404,6 @@ def main(args, logger):
                 client_controls[j] = copy.deepcopy(client_control)
                 delta_models[j] = copy.deepcopy(delta_model)
                 delta_controls[j] = copy.deepcopy(delta_control)
-
-
-
-
-
-
-
-
 
                 print("Clean client: {} ,Acc train: {:.4f}, Acc val: {:.4f}".format(j, acc_train, acc_val))
                 induct_x, induct_edge_index, induct_edge_weights = client_data[j].x, client_data[j].edge_index, client_data[j].edge_weight
@@ -476,10 +459,6 @@ def main(args, logger):
         else:
             # %% inject trigger on attack test nodes (idx_atk)'
             induct_x, induct_edge_index, induct_edge_weights = client_data[i].x, client_data[i].edge_index, client_data[i].edge_weight
-
-
-
-
 
         Accuracy = test_model.test(induct_x.to(device), induct_edge_index.to(device), induct_edge_weights.to(device), client_data[i].y.to(device), client_idx_clean_test[i].to(device))
         print("Client: {}, Accuracy: {:.4f}".format(i,Accuracy))

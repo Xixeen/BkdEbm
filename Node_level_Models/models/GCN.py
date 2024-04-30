@@ -53,9 +53,7 @@ class GCN(nn.Module):
         x = self.gc2(x, edge_index,edge_weight)
         return F.log_softmax(x,dim=1)
 
-
     def get_h(self, x, edge_index):
-
         for conv in self.convs:
             x = F.relu(conv(x, edge_index))
         
@@ -82,7 +80,6 @@ class GCN(nn.Module):
         verbose : bool
             whether to show verbose logs
         """
-
         self.edge_index, self.edge_weight = edge_index, edge_weight
         self.features = features.to(self.device)
         self.labels = labels.to(self.device)

@@ -21,7 +21,6 @@ def model_construct(args,model_name,data,device,nclass):
     #     nclass = int(data.y.max() + 1)
 
     if (model_name == 'GCN'):
-
         model = GCN(nfeat=data.x.shape[1],\
                     nhid=args.hidden,\
                     nclass= nclass,\
@@ -31,7 +30,6 @@ def model_construct(args,model_name,data,device,nclass):
                     device=device,
                     use_ln=use_ln,
                     layer_norm_first=layer_norm_first)
-        
     elif(model_name == 'GAT'):
         model = GAT(nfeat=data.x.shape[1], 
                     nhid=8,
