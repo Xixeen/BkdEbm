@@ -285,7 +285,6 @@ def main(args, logger):
                                                                                      args,
                                                                                      client_idx_val[j].to(device),
                                                                                      train_iters=args.inner_epochs, verbose=False)
-                        torch.save(model_list[j].state_dict(), f'./save_models/Malicious_client_model_{j}_epoch_{epoch}.pth')
                         # output = model_list[j](client_poison_x[j].to(device), client_poison_edge_index[j].to(device), client_poison_edge_weights[j].to(device))
                         # train_attach_rate = (output.argmax(dim=1)[idx_attach] == args.target_class).float().mean()
                         induct_edge_index = torch.cat([client_poison_edge_index[j].to(device), client_mask_edge_index[j].to(device)], dim=1)
@@ -308,8 +307,6 @@ def main(args, logger):
                                                                                      client_idx_val[j].to(device),
                                                                                      train_iters=args.inner_epochs,
                                                                                      verbose=False)
-                        torch.save(model_list[j].state_dict(), f'./save_models/Clean_client_model_{j}_epoch_{epoch}.pth')
-
 
 
                         induct_x, induct_edge_index, induct_edge_weights = client_data[j].x, client_data[j].edge_index, client_data[j].edge_weight
@@ -366,12 +363,12 @@ def main(args, logger):
 
             # wandb logger
             logger.log(worker_results)
-    if nm in rs:
-        torch.save(model_list[nm].state_dict(), f'./save_models/Malicious_client_final_model_{j}.pth')
-        print(f"Malicious_client_final_model_{nm} saved")
-    else:
-        torch.save(model_list[nm].state_dict(), f'./save_models/Clean_client_final_model_{j}.pth')
-        print(f"Clean_client_final_model_{nm} saved")
+        if nm in rs:
+            torch.save(model_list[nm].state_dict(), f'./save_models/Malicious_client_final_model_{j}.pth')
+            print(f"Malicious_client_final_model_{nm} saved")
+        else:
+            torch.save(model_list[nm].state_dict(), f'./save_models/Clean_client_final_model_{j}.pth')
+            print(f"Clean_client_final_model_{nm} saved")
         selected_models = random.sample(model_list, args.num_selected_models)
         # selected_models_index = [model_list.index(model) for model in selected_models]
         # print("selected id", selected_models_index)
