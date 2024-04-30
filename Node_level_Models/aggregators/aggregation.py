@@ -197,6 +197,23 @@ class Energy(nn.Module):
         # 初始化计数器
         self.forward_calls = 0
 
+    def compute_energy(self, x, edge_index, edge_weight=None):
+        """计算给定图数据的能量值。
+
+        参数:
+        x - 节点特征矩阵。
+        edge_index - 边索引。
+        edge_weight - 边权重，如果模型需要的话。
+
+        返回:
+        energy - 计算得到的能量值。
+        """
+        self.energy_model.eval()  # 确保模型处于评估模式
+        with torch.no_grad():  # 确保不会计算梯度
+            logits = self.energy_model(x, edge_index, edge_weight)
+            # 使用负的对数概率来表示能量
+            energy = -torch.log_softmax(logits, dim=1).mean()
+        return energy
     def forward(self, x, edge_index, if_adapt=True):
         if self.episodic:
             self.reset()
