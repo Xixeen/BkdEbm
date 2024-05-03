@@ -53,6 +53,18 @@ class GCN(nn.Module):
         x = self.gc2(x, edge_index,edge_weight)
         return F.log_softmax(x,dim=1)
 
+    def get_logits(self, x, edge_index, edge_weight=None):
+        # 与forward相同的数据流，但返回未经softmax处理的logits
+        if self.layer_norm_first:
+            x = self.lns[0](x)
+        i = 0
+        for conv, ln in zip(self.convs, self.lns[1:]):
+            x = F.relu(conv(x, edge_index, edge_weight))
+            if self.use_ln:
+                x = ln(x)
+            x = F.dropout(x, self.dropout, training=self.training)
+        x = self.gc2(x, edge_index, edge_weight)
+        return x
     def get_h(self, x, edge_index):
         for conv in self.convs:
             x = F.relu(conv(x, edge_index))
@@ -109,6 +121,11 @@ class GCN(nn.Module):
         output = self.forward(self.features, self.edge_index, self.edge_weight)
         self.output = output
         # torch.cuda.empty_cache()
+
+    def calculate_energies(self, x, edge_index, edge_weight=None):
+        logits = self.get_logits(x, edge_index, edge_weight)
+        energies = torch.logsumexp(logits, dim=1)  # 计算并返回能量
+        return energies
 
     def _train_with_val(self,global_model,labels, idx_train, idx_val, train_iters, verbose,args):
         if verbose:

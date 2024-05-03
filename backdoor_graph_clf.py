@@ -82,9 +82,6 @@ def main(args, logger):
         optimizer = torch.optim.Adam(local_model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer=optimizer, step_size=args.step_size, gamma=args.gamma)
 
-
-
-
         train_dataset = partition[i]
         test_dataset = partition[args.num_workers + i]
 
@@ -137,13 +134,11 @@ def main(args, logger):
                                    drop_last=drop_last,
                                    collate_fn=dataset.collate)
 
-
         train_loader_list.append(train_loader)
         attack_loader_list.append(attack_loader)
 
         test_clean_loader_list.append(test_clean_loader)
         test_unchanged_loader_list.append(test_unchanged_loader)
-
 
     weight_history = []
     for epoch in range(args.epochs):
@@ -171,7 +166,6 @@ def main(args, logger):
             print('Client %d, loss %.4f, train acc %.3f, test loss %.4f, test acc %.3f'
                   % (i, train_loss, train_acc, test_loss, test_acc))
 
-
             # save worker results
             for ele in worker_results[f"client_{i}"]:
                 if ele == "train_loss":
@@ -187,7 +181,6 @@ def main(args, logger):
                 tmp_acc = gnn_evaluate_accuracy(attack_loader_list[j], client[i].model)
                 print('Client %d with local trigger %d: %.3f' % (i, j, tmp_acc))
                 att_list.append(tmp_acc)
-
 
         # wandb logger
         logger.log(worker_results)

@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from Node_level_Models.helpers.func_utils import accuracy
 from copy import deepcopy
 import copy
-import energy
+
 def fed_avg(severe_model,local_models,args):
     #selected_models = random.sample(model_list, args.num_selected_models)
     for param_tensor in local_models[0].state_dict():
