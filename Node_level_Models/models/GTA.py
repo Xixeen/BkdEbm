@@ -101,7 +101,6 @@ class HomoLoss(nn.Module):
 #%%
 import numpy as np
 class Backdoor:
-
     def __init__(self,args, device):
         self.args = args
         self.device = device

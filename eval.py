@@ -11,6 +11,8 @@ from sklearn.manifold import TSNE
 
 from Node_level_Models.models.construct import model_construct
 
+
+
 class EnergyModel(nn.Module):
     def __init__(self, model):
         super(EnergyModel, self).__init__()
