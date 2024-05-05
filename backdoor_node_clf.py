@@ -337,98 +337,98 @@ def main(args, logger):
                         worker_results[f"client_{j}"][ele] = acc_val
                 client_induct_edge_index.append(induct_edge_index)
                 client_induct_edge_weights.append(induct_edge_weights)
-        print('==========================calculate the energy 1=========================')
-        # norm calculate
-        client_energies = []
-        is_malicious = []
-        for client_id, model in enumerate(model_list):
-            if client_id in rs:
-                data_x = client_poison_x[client_id].to(device)
-                data_edge_index = client_poison_edge_index[client_id].to(device)
-                data_edge_weight = client_poison_edge_weights[client_id].to(device) if client_poison_edge_weights[
-                                                                                           client_id] is not None else None
-            else:
-                data_x = client_data[client_id].x.to(device)
-                data_edge_index = client_data[client_id].edge_index.to(device)
-                data_edge_weight = client_data[client_id].edge_weight.to(device) if 'edge_weight' in client_data[
-                    client_id] else None
-            energy_model = EnergyModel(model).to(device)
-            energy_model.eval()
-            with torch.no_grad():
-                _, energies = energy_model(data_x, data_edge_index, data_edge_weight)
-                energies = energies.logsumexp(1).cpu().numpy()  # 将能量转换为NumPy数组
-                normalized_energies = min_max_normalize(energies)  # 归一化处理
-                client_energies.append(normalized_energies)
-            is_malicious.append(client_id in rs)
-        # 调用更新后的可视化函数
-        # visualize_all_energies_kde(client_energies, list(range(len(model_list))),is_malicious)
-        visualize_combined_energies_kde(client_energies, list(range(len(client_energies))), is_malicious,
-                                        args.agg_method, args.poisoning_intensity)
-        # visualize_all_energies(client_energies, list(range(len(model_list))), is_malicious)
-        # visualize_energies_kde(client_energies, list(range(len(model_list))), is_malicious)
-        # visualize_with_tsne(client_energies, is_malicious)
-
-        print('==========================calculate the energy 2=========================')
-        # norm calculate
-        client_energies = []
-        is_malicious = []
-
-        for client_id, model in enumerate(model_list):
-            # 始终使用干净的数据集
-            data_x = client_data[client_id].x.to(device)
-            data_edge_index = client_data[client_id].edge_index.to(device)
-            data_edge_weight = client_data[client_id].edge_weight.to(device) if 'edge_weight' in client_data[
-                client_id] else None
-
-            energy_model = EnergyModel(model).to(device)
-            energy_model.eval()
-
-            with torch.no_grad():
-                _, energies = energy_model(data_x, data_edge_index, data_edge_weight)
-                energies = energies.logsumexp(1).cpu().numpy()  # 将能量转换为NumPy数组
-                normalized_energies = min_max_normalize(energies)  # 归一化处理
-                client_energies.append(normalized_energies)
-            is_malicious.append(client_id in rs)
-
-        # 调用更新后的可视化函数
-        # visualize_all_energies_kde_clean(client_energies, list(range(len(model_list))), is_malicious)
-        visualize_combined_energies_kde_clean(client_energies, list(range(len(client_energies))), is_malicious,
-                                              args.agg_method, args.poisoning_intensity)
-        # visualize_all_energies_clean(client_energies, list(range(len(model_list))), is_malicious)
-        # wandb logger
-            #logger.log(worker_results)
-        pdb.set_trace()#手动断点
-        # else:
-        #     for j in range(args.num_workers):
-        #         train_edge_weights = torch.ones([client_train_edge_index[j].shape[1]]).to(device)
-        #         loss_train, loss_val, acc_train, acc_val = model_list[j].fit(global_model,client_data[j].x.to(device),
-        #                                                                      client_train_edge_index[j].to(device),
-        #                                                                      train_edge_weights.to(device),
-        #                                                                      client_data[j].y.to(device),
-        #                                                                      client_idx_train[j].to(device),
-        #                                                                      args,
-        #                                                                      client_idx_val[j].to(device),
-        #                                                                      train_iters=args.inner_epochs,
-        #                                                                      verbose=False)
-        #         print("Clean client: {} ,Acc train: {:.4f}, Acc val: {:.4f}".format(j, acc_train, acc_val))
-        #         induct_x, induct_edge_index, induct_edge_weights = client_data[j].x, client_data[j].edge_index, client_data[j].edge_weight
-        #         # clean_acc = model_list[j].test(client_data[j].x.to(device), client_data[j].edge_index.to(device),
-        #         #                                client_data[j].edge_weight.to(device), client_data[j].y.to(device),
-        #         #                                client_idx_clean_test[j].to(device))
-        #         # 记录结果和能量数据
-        #         logger.log({
-        #             f"client_{j}/train_loss": loss_train,
-        #             f"client_{j}/train_acc": acc_train,
-        #             f"client_{j}/val_loss": loss_val,
-        #             f"client_{j}/val_acc": acc_val,
-        #         })
-        #         # 保存每个客户端的模型和训练结果
-        #         worker_results[f"client_{j}"] = {
-        #             "train_loss": loss_train,
-        #             "train_acc": acc_train,
-        #             "val_loss": loss_val,
-        #             "val_acc": acc_val,
-        #         }
+        # print('==========================calculate the energy 1=========================')
+        # # norm calculate
+        # client_energies = []
+        # is_malicious = []
+        # for client_id, model in enumerate(model_list):
+        #     if client_id in rs:
+        #         data_x = client_poison_x[client_id].to(device)
+        #         data_edge_index = client_poison_edge_index[client_id].to(device)
+        #         data_edge_weight = client_poison_edge_weights[client_id].to(device) if client_poison_edge_weights[
+        #                                                                                    client_id] is not None else None
+        #     else:
+        #         data_x = client_data[client_id].x.to(device)
+        #         data_edge_index = client_data[client_id].edge_index.to(device)
+        #         data_edge_weight = client_data[client_id].edge_weight.to(device) if 'edge_weight' in client_data[
+        #             client_id] else None
+        #     energy_model = EnergyModel(model).to(device)
+        #     energy_model.eval()
+        #     with torch.no_grad():
+        #         _, energies = energy_model(data_x, data_edge_index, data_edge_weight)
+        #         energies = energies.logsumexp(1).cpu().numpy()  # 将能量转换为NumPy数组
+        #         normalized_energies = min_max_normalize(energies)  # 归一化处理
+        #         client_energies.append(normalized_energies)
+        #     is_malicious.append(client_id in rs)
+        # # 调用更新后的可视化函数
+        # # visualize_all_energies_kde(client_energies, list(range(len(model_list))),is_malicious)
+        # visualize_combined_energies_kde(client_energies, list(range(len(client_energies))), is_malicious,
+        #                                 args.agg_method, args.poisoning_intensity)
+        # # visualize_all_energies(client_energies, list(range(len(model_list))), is_malicious)
+        # # visualize_energies_kde(client_energies, list(range(len(model_list))), is_malicious)
+        # # visualize_with_tsne(client_energies, is_malicious)
+        #
+        # print('==========================calculate the energy 2=========================')
+        # # norm calculate
+        # client_energies = []
+        # is_malicious = []
+        #
+        # for client_id, model in enumerate(model_list):
+        #     # 始终使用干净的数据集
+        #     data_x = client_data[client_id].x.to(device)
+        #     data_edge_index = client_data[client_id].edge_index.to(device)
+        #     data_edge_weight = client_data[client_id].edge_weight.to(device) if 'edge_weight' in client_data[
+        #         client_id] else None
+        #
+        #     energy_model = EnergyModel(model).to(device)
+        #     energy_model.eval()
+        #
+        #     with torch.no_grad():
+        #         _, energies = energy_model(data_x, data_edge_index, data_edge_weight)
+        #         energies = energies.logsumexp(1).cpu().numpy()  # 将能量转换为NumPy数组
+        #         normalized_energies = min_max_normalize(energies)  # 归一化处理
+        #         client_energies.append(normalized_energies)
+        #     is_malicious.append(client_id in rs)
+        #
+        # # 调用更新后的可视化函数
+        # # visualize_all_energies_kde_clean(client_energies, list(range(len(model_list))), is_malicious)
+        # visualize_combined_energies_kde_clean(client_energies, list(range(len(client_energies))), is_malicious,
+        #                                       args.agg_method, args.poisoning_intensity)
+        # # visualize_all_energies_clean(client_energies, list(range(len(model_list))), is_malicious)
+        # # wandb logger
+            logger.log(worker_results)
+        #pdb.set_trace()#手动断点
+        else:
+            for j in range(args.num_workers):
+                train_edge_weights = torch.ones([client_train_edge_index[j].shape[1]]).to(device)
+                loss_train, loss_val, acc_train, acc_val = model_list[j].fit(global_model,client_data[j].x.to(device),
+                                                                             client_train_edge_index[j].to(device),
+                                                                             train_edge_weights.to(device),
+                                                                             client_data[j].y.to(device),
+                                                                             client_idx_train[j].to(device),
+                                                                             args,
+                                                                             client_idx_val[j].to(device),
+                                                                             train_iters=args.inner_epochs,
+                                                                             verbose=False)
+                print("Clean client: {} ,Acc train: {:.4f}, Acc val: {:.4f}".format(j, acc_train, acc_val))
+                induct_x, induct_edge_index, induct_edge_weights = client_data[j].x, client_data[j].edge_index, client_data[j].edge_weight
+                # clean_acc = model_list[j].test(client_data[j].x.to(device), client_data[j].edge_index.to(device),
+                #                                client_data[j].edge_weight.to(device), client_data[j].y.to(device),
+                #                                client_idx_clean_test[j].to(device))
+                # 记录结果和能量数据
+                logger.log({
+                    f"client_{j}/train_loss": loss_train,
+                    f"client_{j}/train_acc": acc_train,
+                    f"client_{j}/val_loss": loss_val,
+                    f"client_{j}/val_acc": acc_val,
+                })
+                # 保存每个客户端的模型和训练结果
+                worker_results[f"client_{j}"] = {
+                    "train_loss": loss_train,
+                    "train_acc": acc_train,
+                    "val_loss": loss_val,
+                    "val_acc": acc_val,
+                }
 
         #selected_models = random.sample(model_list, args.num_selected_models)
         #selected_models_index = [model_list.index(model) for model in selected_models]
