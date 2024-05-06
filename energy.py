@@ -52,11 +52,8 @@ class MLP(nn.Module):
 
 class energy(nn.Module):
     def __init__(self, in_dim, out_dim, GNN_name="GCN"):
-
         super(energy, self).__init__()
-
         self.mlp0 = MLP(3, in_dim, out_dim, out_dim)
-
         if GNN_name == "GIN":
             self.linear1 = MLP(4, out_dim, out_dim, out_dim)
             self.graphconv1 = GINConv(self.linear1)
@@ -66,16 +63,13 @@ class energy(nn.Module):
             self.graphconv1 = GATConv(out_dim, out_dim, aggr='mean')
         elif GNN_name == "SAGE":
             self.graphconv1 = SAGEConv(out_dim, out_dim, aggr='mean')
-
         self.mlp1 = nn.Linear(out_dim, 1)
         self.sigmoid = nn.Sigmoid()
         self.relu = nn.ReLU()
-
     def forward(self, x, edge_index):
         h0 = self.mlp0(x)
         h1 = self.graphconv1(h0, edge_index)
         h2 = self.mlp1(h1)
         h2 = self.relu(h2)
         p = torch.exp(h2)
-
         return p

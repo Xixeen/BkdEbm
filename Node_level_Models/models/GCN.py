@@ -53,7 +53,9 @@ class GCN(nn.Module):
             i+=1
             x = F.dropout(x, self.dropout, training=self.training)
         x = self.gc2(x, edge_index,edge_weight)
-        return F.log_softmax(x,dim=1)
+        log_softmax_output = F.log_softmax(x, dim=1)
+        energy_output = self.energy(x, edge_index)  # 获取子图的能量输出
+        return log_softmax_output, energy_output
 
     def get_logits(self, x, edge_index, edge_weight=None):
         # 与forward相同的数据流，但返回未经softmax处理的logits

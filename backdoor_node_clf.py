@@ -17,6 +17,7 @@ from Node_level_Models.data.datasets import  ogba_data,Amazon_data,Coauthor_data
 from eval import plot_energy_distribution, visualize_energies, EnergyModel, visualize_energies_kde, \
     visualize_all_energies, min_max_normalize, visualize_with_tsne, visualize_all_energies_kde, \
     visualize_combined_energies_kde, visualize_all_energies_kde_clean, visualize_combined_energies_kde_clean
+from helperFunction import _aug_random_edge
 from select_models_by_energy import select_models_based_on_energy, record_client_energies_js, \
     record_client_energies_ks
 from setdata import setup_energy
@@ -246,6 +247,26 @@ def main(args, logger):
         client_poison_edge_index[i] = poison_edge_index
         client_poison_edge_weights[i] = poison_edge_weights
         client_bkd_tn_nodes.append(bkd_tn_nodes)
+    print('======================Start Preparing the Aumented Posioned Datasets========================================')
+    # 假设 args.num_mali 是恶意客户端的数量
+    augmented_poison_edge_indices = []
+    augmented_poison_edge_weights = []
+
+    for i in range(args.num_mali):
+        # 获取当前恶意客户端的毒化数据
+        poison_edge_index = client_poison_edge_index[i].to(device)
+        num_nodes = client_poison_x[i].size(0)  # 假设毒化数据中的节点数量
+
+        # 生成扰动图
+        aug_poison_edge_index = _aug_random_edge(num_nodes, poison_edge_index, perturb_percent=0.2,
+                                                 drop_edge=True, add_edge=True, self_loop=True, use_avg_deg=True)
+        aug_poison_edge_index = aug_poison_edge_index.to(device)
+        aug_poison_edge_weights = torch.ones(aug_poison_edge_index.size(1), dtype=torch.float, device=device)
+
+        # 保存扰动后的边索引和边权重
+        augmented_poison_edge_indices.append(aug_poison_edge_index)
+        augmented_poison_edge_weights.append(aug_poison_edge_weights)
+
     optimizer_list = []
     print('======================Start Preparing the Models========================================')
     # Initialize clients
@@ -265,7 +286,7 @@ def main(args, logger):
 
     #pdb.set_trace()
     print(f'args.epochs={args.epochs}')
-    print('======================Start Origin_GCN Training Model========================================')
+    print('======================Start EnergyGCN Training Model========================================')
     for epoch in range(args.epochs):
         client_induct_edge_index = []
         client_induct_edge_weights = []
