@@ -75,36 +75,64 @@ class GCN(nn.Module):
         
         return x
 
-    def fit(self, global_model, features, edge_index, edge_weight, labels, idx_train, args, idx_val=None, train_iters=200, verbose=False):
-        """Train the gcn model, when idx_val is not None, pick the best model according to the validation loss.
+    # def fit(self, global_model, features, edge_index, edge_weight, labels, idx_train, args, idx_val=None, train_iters=200, verbose=False):
+    #     """Train the gcn model, when idx_val is not None, pick the best model according to the validation loss.
+    #     Parameters
+    #     ----------
+    #     features :
+    #         node features
+    #     adj :
+    #         the adjacency matrix. The format could be torch.tensor or scipy matrix
+    #     labels :
+    #         node labels
+    #     idx_train :
+    #         node training indices
+    #     idx_val :
+    #         node validation indices. If not given (None), GCN training process will not adpot early stopping
+    #     train_iters : int
+    #         number of training epochs
+    #     initialize : bool
+    #         whether to initialize parameters before training
+    #     verbose : bool
+    #         whether to show verbose logs
+    #     """
+    #     self.edge_index, self.edge_weight = edge_index, edge_weight
+    #     self.features = features.to(self.device)
+    #     self.labels = labels.to(self.device)
+    #
+    #     if idx_val is None:
+    #         self._train_without_val(self.labels, idx_train, train_iters, verbose)
+    #     else:
+    #         loss_train, loss_val, acc_train, acc_val = self._train_with_val(global_model,self.labels, idx_train, idx_val, train_iters, verbose,args)
+    #     return  loss_train, loss_val, acc_train, acc_val
+
+    def fit(self, global_model, features, edge_index, edge_weight, aug_edge_index, aug_edge_weight, labels, idx_train,
+            args, idx_val=None, train_iters=200, verbose=False):
+        """Train the GCN model, when idx_val is not None, pick the best model according to the validation loss.
         Parameters
         ----------
-        features :
-            node features
-        adj :
-            the adjacency matrix. The format could be torch.tensor or scipy matrix
-        labels :
-            node labels
-        idx_train :
-            node training indices
-        idx_val :
-            node validation indices. If not given (None), GCN training process will not adpot early stopping
-        train_iters : int
-            number of training epochs
-        initialize : bool
-            whether to initialize parameters before training
-        verbose : bool
-            whether to show verbose logs
+        features : node features
+        edge_index : the adjacency matrix of original graph.
+        edge_weight : weights of the original graph edges.
+        aug_edge_index : the adjacency matrix of augmented graph.
+        aug_edge_weight : weights of the augmented graph edges.
+        labels : node labels
+        idx_train : node training indices
+        idx_val : node validation indices. If not given (None), GCN training process will not adopt early stopping
+        train_iters : number of training epochs
+        verbose : whether to show verbose logs
         """
-        self.edge_index, self.edge_weight = edge_index, edge_weight
+        self.edge_index, self.edge_weight = edge_index, edge_weight  # Original graph
+        self.aug_edge_index, self.aug_edge_weight = aug_edge_index, aug_edge_weight  # Augmented graph
         self.features = features.to(self.device)
         self.labels = labels.to(self.device)
 
         if idx_val is None:
             self._train_without_val(self.labels, idx_train, train_iters, verbose)
         else:
-            loss_train, loss_val, acc_train, acc_val = self._train_with_val(global_model,self.labels, idx_train, idx_val, train_iters, verbose,args)
-        return  loss_train, loss_val, acc_train, acc_val
+            loss_train, loss_val, acc_train, acc_val = self._train_with_val(self, global_model, features, labels, idx_train, idx_val, edge_index, edge_weight,
+                        aug_edge_index, aug_edge_weight, train_iters, verbose, args)
+        return loss_train, loss_val, acc_train, acc_val
 
     def _train_without_val(self, labels, idx_train, train_iters, verbose):
         self.train()
@@ -131,7 +159,53 @@ class GCN(nn.Module):
         energies = torch.logsumexp(logits, dim=1)  # 计算并返回能量
         return energies
 
-    def _train_with_val(self,global_model,labels, idx_train, idx_val, train_iters, verbose,args):
+    # def _train_with_val(self,global_model,labels, idx_train, idx_val, train_iters, verbose,args):
+    #     if verbose:
+    #         print('=== training gcn model ===')
+    #     optimizer = optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+    #
+    #     best_loss_val = 100
+    #     best_acc_val = -10
+    #
+    #     for i in range(train_iters):
+    #         self.train()
+    #         optimizer.zero_grad()
+    #         output = self.forward(self.features, self.edge_index, self.edge_weight)
+    #         loss_train = F.nll_loss(output[idx_train], labels[idx_train])
+    #         # if args.agg_method == "FedProx":
+    #         #     # compute proximal_term
+    #         #     proximal_term = 0.0
+    #         #     for w, w_t in zip(self.parameters(), global_model.parameters()):
+    #         #         proximal_term += (w - w_t).norm(2)
+    #         #     loss_train = loss_train + (args.mu / 2) * proximal_term
+    #
+    #         loss_train.backward()
+    #         optimizer.step()
+    #
+    #         self.eval()
+    #         with torch.no_grad():
+    #             output = self.forward(self.features, self.edge_index, self.edge_weight)
+    #             loss_val = F.nll_loss(output[idx_val], labels[idx_val])
+    #             acc_val = accuracy(output[idx_val], labels[idx_val])
+    #             acc_train = accuracy(output[idx_train], labels[idx_train])
+    #
+    #         if verbose and i % 10 == 0:
+    #             print('Epoch {}, training loss: {}'.format(i, loss_train.item()))
+    #             print("acc_val: {:.4f}".format(acc_val))
+    #         if acc_val > best_acc_val:
+    #             best_acc_val = acc_val
+    #             self.output = output
+    #             weights = deepcopy(self.state_dict())
+    #
+    #     if verbose:
+    #         print('=== picking the best model according to the performance on validation ===')
+    #     self.load_state_dict(weights)
+    #
+    #     return loss_train.item(), loss_val.item(), acc_train, acc_val
+
+    def _train_with_val(self, global_model, features, labels, idx_train, idx_val, edge_index, edge_weight,
+                        aug_edge_index, aug_edge_weight, train_iters, verbose):
+
         if verbose:
             print('=== training gcn model ===')
         optimizer = optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
@@ -142,28 +216,35 @@ class GCN(nn.Module):
         for i in range(train_iters):
             self.train()
             optimizer.zero_grad()
-            output = self.forward(self.features, self.edge_index, self.edge_weight)
+            output = self.forward(features, edge_index, edge_weight)
             loss_train = F.nll_loss(output[idx_train], labels[idx_train])
-            if args.agg_method == "FedProx":
-                # compute proximal_term
-                proximal_term = 0.0
-                for w, w_t in zip(self.parameters(), global_model.parameters()):
-                    proximal_term += (w - w_t).norm(2)
 
-                loss_train = loss_train + (args.mu / 2) * proximal_term
+            # Additional loss computation based on augmented graph
+            p_data = output  # original output used for comparison
+            shuf_feats = features[:, torch.randperm(features.size(1))]  # shuffle features
+            p_neigh = self.forward(shuf_feats, aug_edge_index, aug_edge_weight)  # output from augmented graph
+            c_theta_j1 = p_neigh / p_data
+            c_theta_j2 = p_data / p_neigh
 
-            loss_train.backward()
+            j1 = (c_theta_j1 ** 2 + 2 * c_theta_j1).mean()
+            j2 = (2 * c_theta_j2).mean()
+
+            neigh_loss = j1 - j2
+            total_loss = loss_train + neigh_loss  # combine the losses
+
+            total_loss.backward()
             optimizer.step()
 
             self.eval()
             with torch.no_grad():
-                output = self.forward(self.features, self.edge_index, self.edge_weight)
+                output = self.forward(features, edge_index, edge_weight)
                 loss_val = F.nll_loss(output[idx_val], labels[idx_val])
                 acc_val = accuracy(output[idx_val], labels[idx_val])
                 acc_train = accuracy(output[idx_train], labels[idx_train])
 
             if verbose and i % 10 == 0:
-                print('Epoch {}, training loss: {}'.format(i, loss_train.item()))
+                print('Epoch {}, training loss: {:.4f}, additional loss: {:.4f}'.format(i, loss_train.item(),
+                                                                                        neigh_loss.item()))
                 print("acc_val: {:.4f}".format(acc_val))
             if acc_val > best_acc_val:
                 best_acc_val = acc_val

@@ -166,6 +166,21 @@ def main(args, logger):
         unlabeled_idx = (torch.bitwise_not(data.test_mask)&torch.bitwise_not(data.train_mask)).nonzero().flatten()
         client_unlabeled_idx.append(unlabeled_idx)
     #### END OF DATA PREPARATION #####
+    # 假设已经在前面的代码中初始化了必要的变量和数据结构
+    augmented_clean_edge_indices = []
+    augmented_clean_edge_weights = []
+    for k in range(len(client_data)):
+        # 获取当前客户端的干净数据
+        clean_edge_index = client_train_edge_index[k].to(device)
+        num_nodes = client_data[k].x.size(0)
+        # 生成扰动图
+        aug_clean_edge_index = _aug_random_edge(num_nodes, clean_edge_index, perturb_percent=0.2,
+                                                drop_edge=True, add_edge=True, self_loop=True, use_avg_deg=True)
+        aug_clean_edge_index = aug_clean_edge_index.to(device)
+        aug_clean_edge_weights = torch.ones(aug_clean_edge_index.size(1), dtype=torch.float, device=device)
+        # 保存扰动后的边索引和边权重
+        augmented_clean_edge_indices.append(aug_clean_edge_index)
+        augmented_clean_edge_weights.append(aug_clean_edge_weights)
 
     print('======================Start Preparing the Backdoor Attack========================================')
     # prepare for malicious attacker
@@ -247,6 +262,7 @@ def main(args, logger):
         client_poison_edge_index[i] = poison_edge_index
         client_poison_edge_weights[i] = poison_edge_weights
         client_bkd_tn_nodes.append(bkd_tn_nodes)
+
     print('======================Start Preparing the Aumented Posioned Datasets========================================')
     # 假设 args.num_mali 是恶意客户端的数量
     augmented_poison_edge_indices = []
@@ -302,14 +318,27 @@ def main(args, logger):
         if epoch >= args.epoch_backdoor:
             for j in range(args.num_workers):
                 if j in rs:
-                    loss_train, loss_val, acc_train, acc_val = model_list[j].fit(global_model,client_poison_x[j].to(device),
-                                                                                 client_poison_edge_index[j].to(device),
-                                                                                 client_poison_edge_weights[j].to(device),
-                                                                                 client_poison_labels[j].to(device),
-                                                                                 client_bkd_tn_nodes[j].to(device),
-                                                                                 args,
-                                                                                 client_idx_val[j].to(device),
-                                                                                 train_iters=args.inner_epochs, verbose=False)
+                    # loss_train, loss_val, acc_train, acc_val = model_list[j].fit(global_model,client_poison_x[j].to(device),
+                    #                                                              client_poison_edge_index[j].to(device),
+                    #                                                              client_poison_edge_weights[j].to(device),
+                    #                                                              client_poison_labels[j].to(device),
+                    #                                                              client_bkd_tn_nodes[j].to(device),
+                    #                                                              args,
+                    #                                                              client_idx_val[j].to(device),
+                    #                                                              train_iters=args.inner_epochs, verbose=False)
+                    loss_train, loss_val, acc_train, acc_val = model_list[j]._train_with_val(
+                        global_model,  # global_model
+                        client_poison_x[j].to(device),  # features
+                        client_poison_labels[j].to(device),  # labels
+                        client_bkd_tn_nodes[j].to(device),  # idx_train (注意: 这里假设你的client_bkd_tn_nodes代表训练索引)
+                        client_idx_val[j].to(device),  # idx_val
+                        client_poison_edge_index[j].to(device),  # edge_index
+                        client_poison_edge_weights[j].to(device),  # edge_weight
+                        augmented_poison_edge_indices[j].to(device),  # aug_edge_index
+                        augmented_poison_edge_weights[j].to(device),  # aug_edge_weight
+                        args.inner_epochs,  # train_iters
+                        verbose=False,  # verbose
+                    )
                     print("Malicious client: {} ,Acc train: {:.4f}, Acc val: {:.4f}".format(j,acc_train,acc_val))
                     induct_edge_index = torch.cat([client_poison_edge_index[j].to(device), client_mask_edge_index[j].to(device)], dim=1)
                     induct_edge_weights = torch.cat(
@@ -317,16 +346,29 @@ def main(args, logger):
                 else:
                     #client_train_edge_index
                     train_edge_weights = torch.ones([client_train_edge_index[j].shape[1]]).to(device)
-                    loss_train, loss_val, acc_train, acc_val = model_list[j].fit(global_model,client_data[j].x.to(device),
-                                                                                 client_train_edge_index[j].to(device),
-                                                                                 train_edge_weights.to(device),
-                                                                                 client_data[j].y.to(device),
-                                                                                 client_idx_train[j].to(device),
-                                                                                 args,
-                                                                                 client_idx_val[j].to(device),
-                                                                                 train_iters=args.inner_epochs,
-                                                                                 verbose=False)
-
+                    # loss_train, loss_val, acc_train, acc_val = model_list[j].fit(global_model,client_data[j].x.to(device),
+                    #                                                              client_train_edge_index[j].to(device),
+                    #                                                              train_edge_weights.to(device),
+                    #                                                              client_data[j].y.to(device),
+                    #                                                              client_idx_train[j].to(device),
+                    #                                                              args,
+                    #                                                              client_idx_val[j].to(device),
+                    #                                                              train_iters=args.inner_epochs,
+                    #                                                              verbose=False)
+                    loss_train, loss_val, acc_train, acc_val = model_list[j]._train_with_val(
+                        global_model,  # global_model
+                        client_data[j].x.to(device),  # features
+                        client_data[j].y.to(device),  # labels
+                        client_idx_train[j].to(device),  # idx_train
+                        client_idx_val[j].to(device),  # idx_val
+                        client_train_edge_index[j].to(device),  # edge_index
+                        train_edge_weights.to(device),  # edge_weight
+                        augmented_clean_edge_indices[j].to(device),  # aug_edge_index
+                        augmented_clean_edge_weights[j].to(device),  # aug_edge_weight
+                        args.inner_epochs,  # train_iters
+                        verbose=False,  # verbose
+                         # args
+                    )
                     print("Clean client: {} ,Acc train: {:.4f}, Acc val: {:.4f}".format(j, acc_train, acc_val))
                     induct_x, induct_edge_index, induct_edge_weights = client_data[j].x, client_data[j].edge_index, client_data[j].edge_weight
                     # clean_acc = model_list[j].test(client_data[j].x.to(device), client_data[j].edge_index.to(device),
