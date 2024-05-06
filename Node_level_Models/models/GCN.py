@@ -6,6 +6,7 @@ import torch.optim as optim
 from Node_level_Models.helpers.func_utils import accuracy
 from copy import deepcopy
 from torch_geometric.nn import GCNConv
+from energy import MLP,energy
 import numpy as np
 import scipy.sparse as sp
 from torch_geometric.utils import from_scipy_sparse_matrix
@@ -16,6 +17,7 @@ class GCN(nn.Module):
         super(GCN, self).__init__()
 
         assert device is not None, "Please specify 'device'!"
+
         self.device = device
         self.nfeat = nfeat
         self.hidden_sizes = [nhid]
@@ -138,10 +140,8 @@ class GCN(nn.Module):
         for i in range(train_iters):
             self.train()
             optimizer.zero_grad()
-
             output = self.forward(self.features, self.edge_index, self.edge_weight)
             loss_train = F.nll_loss(output[idx_train], labels[idx_train])
-
             if args.agg_method == "FedProx":
                 # compute proximal_term
                 proximal_term = 0.0
@@ -150,12 +150,8 @@ class GCN(nn.Module):
 
                 loss_train = loss_train + (args.mu / 2) * proximal_term
 
-
-
             loss_train.backward()
             optimizer.step()
-
-
 
             self.eval()
             with torch.no_grad():
@@ -163,8 +159,6 @@ class GCN(nn.Module):
                 loss_val = F.nll_loss(output[idx_val], labels[idx_val])
                 acc_val = accuracy(output[idx_val], labels[idx_val])
                 acc_train = accuracy(output[idx_train], labels[idx_train])
-
-
 
             if verbose and i % 10 == 0:
                 print('Epoch {}, training loss: {}'.format(i, loss_train.item()))
