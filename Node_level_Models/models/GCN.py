@@ -6,7 +6,6 @@ import torch.optim as optim
 from Node_level_Models.helpers.func_utils import accuracy
 from copy import deepcopy
 from torch_geometric.nn import GCNConv
-from energy import MLP,energy
 import numpy as np
 import scipy.sparse as sp
 from torch_geometric.utils import from_scipy_sparse_matrix
@@ -17,7 +16,7 @@ class GCN(nn.Module):
         super(GCN, self).__init__()
 
         assert device is not None, "Please specify 'device'!"
-
+        #self.energy = energy(nhid, nclass)
         self.device = device
         self.nfeat = nfeat
         self.hidden_sizes = [nhid]
@@ -54,21 +53,24 @@ class GCN(nn.Module):
             x = F.dropout(x, self.dropout, training=self.training)
         x = self.gc2(x, edge_index,edge_weight)
         log_softmax_output = F.log_softmax(x, dim=1)
-        energy_output = self.energy(x, edge_index)  # 获取子图的能量输出
-        return log_softmax_output, energy_output
+        return log_softmax_output
 
-    def get_logits(self, x, edge_index, edge_weight=None):
-        # 与forward相同的数据流，但返回未经softmax处理的logits
-        if self.layer_norm_first:
+    def forward_energy(self, x, edge_index, edge_weight=None):
+        if (self.layer_norm_first):
             x = self.lns[0](x)
         i = 0
-        for conv, ln in zip(self.convs, self.lns[1:]):
+        for conv in self.convs:
             x = F.relu(conv(x, edge_index, edge_weight))
-            if self.use_ln:
-                x = ln(x)
-            x = F.dropout(x, self.dropout, training=self.training)
+        if self.use_ln:
+            x = self.lns[i + 1](x)
+        i += 1
+        x = F.dropout(x, self.dropout, training=self.training)
         x = self.gc2(x, edge_index, edge_weight)
-        return x
+        #p = torch.exp(x)
+        p = x.logsumexp(dim=1).detach().cpu().numpy()
+        #p=x
+        return p
+
     def get_h(self, x, edge_index):
         for conv in self.convs:
             x = F.relu(conv(x, edge_index))
@@ -154,10 +156,10 @@ class GCN(nn.Module):
         self.output = output
         # torch.cuda.empty_cache()
 
-    def calculate_energies(self, x, edge_index, edge_weight=None):
-        logits = self.get_logits(x, edge_index, edge_weight)
-        energies = torch.logsumexp(logits, dim=1)  # 计算并返回能量
-        return energies
+    # def calculate_energies(self, x, edge_index, edge_weight=None):
+    #     logits = self.get_logits(x, edge_index, edge_weight)
+    #     energies = torch.logsumexp(logits, dim=1)  # 计算并返回能量
+    #     return energies
 
     # def _train_with_val(self,global_model,labels, idx_train, idx_val, train_iters, verbose,args):
     #     if verbose:
@@ -218,11 +220,11 @@ class GCN(nn.Module):
             optimizer.zero_grad()
             output = self.forward(features, edge_index, edge_weight)
             loss_train = F.nll_loss(output[idx_train], labels[idx_train])
-
+            p_data = self.forward_energy(features, edge_index, edge_weight)
             # Additional loss computation based on augmented graph
-            p_data = output  # original output used for comparison
+            #p_data = output  # original output used for comparison
             shuf_feats = features[:, torch.randperm(features.size(1))]  # shuffle features
-            p_neigh = self.forward(shuf_feats, aug_edge_index, aug_edge_weight)  # output from augmented graph
+            p_neigh = self.forward_energy(shuf_feats, aug_edge_index, aug_edge_weight)  # output from augmented graph
             c_theta_j1 = p_neigh / p_data
             c_theta_j2 = p_data / p_neigh
 

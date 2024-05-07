@@ -73,3 +73,6 @@ class energy(nn.Module):
         h2 = self.relu(h2)
         p = torch.exp(h2)
         return p
+
+def getEnergy(x,edge_index):
+    p =

@@ -40,11 +40,13 @@ python run_node_exps.py  --model GCN\
                          --num_workers 5\
                          --num_mali 1\
                          --epoch_backdoor 0\
-                         --trigger_size 3\
+                         --trigger_size 5\
                          --trigger_type renyi\
                          --trigger_position random\
-                         --poisoning_intensity 0.1\
-                         --overlapping_rate 0.0
+                         --poisoning_intensity 0.4\
+                         --overlapping_rate 0.0\
+                         --device_id 1\
+                         --inner_epochs 200
 ```
 
 ###  Backdoor attack  in Federated GNNs on other federated algorithms and defense methods
@@ -93,7 +95,7 @@ python run_node_exps.py  --model GCN\
 - **Total epoch**: `200`
 - **Learning rate**: `0.01`
 
- 
+
 > Each experiment was repeated 5 times with a different seed each time
 
 
