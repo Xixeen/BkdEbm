@@ -1,4 +1,5 @@
-#%%
+import pdb
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,13 +11,15 @@ import numpy as np
 import scipy.sparse as sp
 from torch_geometric.utils import from_scipy_sparse_matrix
 
+
 class GCN(nn.Module):
-    def __init__(self, nfeat, nhid, nclass, dropout=0.5, lr=0.01, weight_decay=5e-4, layer=2,device=None,layer_norm_first=False,use_ln=False):
+    def __init__(self, nfeat, nhid, nclass, dropout=0.5, lr=0.01, weight_decay=5e-4, layer=2, device=None,
+                 layer_norm_first=True, use_ln=True):
 
         super(GCN, self).__init__()
 
         assert device is not None, "Please specify 'device'!"
-        #self.energy = energy(nhid, nclass)
+        # self.energy = energy(nhid, nclass)
         self.device = device
         self.nfeat = nfeat
         self.hidden_sizes = [nhid]
@@ -25,8 +28,8 @@ class GCN(nn.Module):
         self.convs.append(GCNConv(nfeat, nhid))
         self.lns = nn.ModuleList()
         self.lns.append(torch.nn.LayerNorm(nfeat))
-        for _ in range(layer-2):
-            self.convs.append(GCNConv(nhid,nhid))
+        for _ in range(layer - 2):
+            self.convs.append(GCNConv(nhid, nhid))
             self.lns.append(nn.LayerNorm(nhid))
         self.lns.append(nn.LayerNorm(nhid))
         self.gc2 = GCNConv(nhid, nclass)
@@ -35,23 +38,23 @@ class GCN(nn.Module):
         self.output = None
         self.edge_index = None
         self.edge_weight = None
-        self.features = None 
+        self.features = None
         self.weight_decay = weight_decay
 
         self.layer_norm_first = layer_norm_first
         self.use_ln = use_ln
 
     def forward(self, x, edge_index, edge_weight=None):
-        if(self.layer_norm_first):
+        if (self.layer_norm_first):
             x = self.lns[0](x)
-        i=0
+        i = 0
         for conv in self.convs:
-            x = F.relu(conv(x, edge_index,edge_weight))
+            x = F.relu(conv(x, edge_index, edge_weight))
             if self.use_ln:
-                x = self.lns[i+1](x)
-            i+=1
+                x = self.lns[i + 1](x)
+            i += 1
             x = F.dropout(x, self.dropout, training=self.training)
-        x = self.gc2(x, edge_index,edge_weight)
+        x = self.gc2(x, edge_index, edge_weight)
         log_softmax_output = F.log_softmax(x, dim=1)
         return log_softmax_output
 
@@ -61,20 +64,20 @@ class GCN(nn.Module):
         i = 0
         for conv in self.convs:
             x = F.relu(conv(x, edge_index, edge_weight))
-        if self.use_ln:
-            x = self.lns[i + 1](x)
-        i += 1
-        x = F.dropout(x, self.dropout, training=self.training)
+            if self.use_ln:
+                x = self.lns[i + 1](x)
+            i += 1
+            x = F.dropout(x, self.dropout, training=self.training)
         x = self.gc2(x, edge_index, edge_weight)
-        #p = torch.exp(x)
-        p = x.logsumexp(dim=1).detach().cpu().numpy()
-        #p=x
+        # p = torch.exp(x)(dim=1)
+        p = x.logsumexp(dim=1)
+        # p=x
         return p
 
     def get_h(self, x, edge_index):
         for conv in self.convs:
             x = F.relu(conv(x, edge_index))
-        
+
         return x
 
     # def fit(self, global_model, features, edge_index, edge_weight, labels, idx_train, args, idx_val=None, train_iters=200, verbose=False):
@@ -132,8 +135,10 @@ class GCN(nn.Module):
         if idx_val is None:
             self._train_without_val(self.labels, idx_train, train_iters, verbose)
         else:
-            loss_train, loss_val, acc_train, acc_val = self._train_with_val(self, global_model, features, labels, idx_train, idx_val, edge_index, edge_weight,
-                        aug_edge_index, aug_edge_weight, train_iters, verbose, args)
+            loss_train, loss_val, acc_train, acc_val = self._train_with_val(self, global_model, features, labels,
+                                                                            idx_train, idx_val, edge_index, edge_weight,
+                                                                            aug_edge_index, aug_edge_weight,
+                                                                            train_iters, verbose, args)
         return loss_train, loss_val, acc_train, acc_val
 
     def _train_without_val(self, labels, idx_train, train_iters, verbose):
@@ -206,36 +211,39 @@ class GCN(nn.Module):
     #     return loss_train.item(), loss_val.item(), acc_train, acc_val
 
     def _train_with_val(self, global_model, features, labels, idx_train, idx_val, edge_index, edge_weight,
-                        aug_edge_index, aug_edge_weight, train_iters, verbose):
-
+                        aug_edge_index, aug_edge_weight, train_iters, args, verbose, ):
         if verbose:
             print('=== training gcn model ===')
         optimizer = optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-
+        neigh_loss = 0.1
         best_loss_val = 100
         best_acc_val = -10
-
+        # p_data = self.forward_energy(features, edge_index, edge_weight)
+        # p_data = p_data_0
         for i in range(train_iters):
             self.train()
             optimizer.zero_grad()
             output = self.forward(features, edge_index, edge_weight)
             loss_train = F.nll_loss(output[idx_train], labels[idx_train])
-            p_data = self.forward_energy(features, edge_index, edge_weight)
             # Additional loss computation based on augmented graph
-            #p_data = output  # original output used for comparison
-            shuf_feats = features[:, torch.randperm(features.size(1))]  # shuffle features
-            p_neigh = self.forward_energy(shuf_feats, aug_edge_index, aug_edge_weight)  # output from augmented graph
-            c_theta_j1 = p_neigh / p_data
-            c_theta_j2 = p_data / p_neigh
+            # shuf_feats = features[:, torch.randperm(features.size(1))]  # shuffle features
+            # p_data = self.forward_energy(features, edge_index, edge_weight)
+            # p_neigh = self.forward_energy(shuf_feats, aug_edge_index, aug_edge_weight)  # output from augmented graph
+            # c_theta_j1 = p_neigh / p_data
+            # c_theta_j2 = p_data / p_neigh
+            # j1 = (c_theta_j1 ** 2 + 2 * c_theta_j1).mean()
+            # j2 = (2 * c_theta_j2).mean()
+            # neigh_loss = j1 - j2
 
-            j1 = (c_theta_j1 ** 2 + 2 * c_theta_j1).mean()
-            j2 = (2 * c_theta_j2).mean()
-
-            neigh_loss = j1 - j2
-            total_loss = loss_train + neigh_loss  # combine the losses
-
+            # Combine losses
+            # if args.is_energy:
+            #    total_loss = (1 - args.energy_weight) * loss_train + args.energy_weight * neigh_loss
+            # else:
+            total_loss = loss_train
             total_loss.backward()
             optimizer.step()
+
+            # self.adjust_bn_layers(features, edge_index, edge_weight, aug_edge_index, aug_edge_weight, optimizer)
 
             self.eval()
             with torch.no_grad():
@@ -244,10 +252,6 @@ class GCN(nn.Module):
                 acc_val = accuracy(output[idx_val], labels[idx_val])
                 acc_train = accuracy(output[idx_train], labels[idx_train])
 
-            if verbose and i % 10 == 0:
-                print('Epoch {}, training loss: {:.4f}, additional loss: {:.4f}'.format(i, loss_train.item(),
-                                                                                        neigh_loss.item()))
-                print("acc_val: {:.4f}".format(acc_val))
             if acc_val > best_acc_val:
                 best_acc_val = acc_val
                 self.output = output
@@ -259,7 +263,50 @@ class GCN(nn.Module):
 
         return loss_train.item(), loss_val.item(), acc_train, acc_val
 
-    def test(self, features, edge_index, edge_weight, labels,idx_test):
+    def adjust_bn_layers(self, features, edge_index, edge_weight, aug_edge_index, aug_edge_weight):
+        # for name, param in self.named_parameters():
+        #     print(name)  # 打印所有参数名称
+        # pdb.set_trace()
+        bn_params = []
+        other_params = []
+        for name, param in self.named_parameters():
+            if 'lns' in name:  # LayerNorm层
+                bn_params.append(param)
+                param.requires_grad = True
+            elif 'gc2' in name:  # GCNConv层
+                bn_params.append(param)
+                param.requires_grad = True
+            elif 'conv' in name:  # GCNConv层
+                bn_params.append(param)
+                param.requires_grad = True
+            else:
+                other_params.append(param)
+                param.requires_grad = False
+
+        optimizer = optim.Adam(bn_params, lr=self.lr, weight_decay=self.weight_decay)
+
+        # 开启计算和优化
+        self.train()
+        optimizer.zero_grad()
+
+        for param in self.parameters():
+            param.requires_grad = True
+
+        p_data = self.forward_energy(features, edge_index, edge_weight)
+        shuf_feats = features[:, torch.randperm(features.size(1))]  # shuffle features
+
+        p_neigh = self.forward_energy(shuf_feats, aug_edge_index, aug_edge_weight)
+        c_theta_j1 = p_neigh / p_data
+        c_theta_j2 = p_data / p_neigh
+        j1 = (c_theta_j1 ** 2 + 2 * c_theta_j1).mean()
+        j2 = (2 * c_theta_j2).mean()
+        neigh_loss = j1 - j2
+        neigh_loss.backward()
+        optimizer.step()
+        for param in other_params:
+            param.requires_grad = True
+
+    def test(self, features, edge_index, edge_weight, labels, idx_test):
         """Evaluate GCN performance on test set.
         Parameters
         ----------
@@ -275,13 +322,11 @@ class GCN(nn.Module):
         #       "loss= {:.4f}".format(loss_test.item()),
         #       "accuracy= {:.4f}".format(acc_test.item()))
         return float(acc_test)
-    
-    def test_with_correct_nodes(self, features, edge_index, edge_weight, labels,idx_test):
+
+    def test_with_correct_nodes(self, features, edge_index, edge_weight, labels, idx_test):
         self.eval()
         output = self.forward(features, edge_index, edge_weight)
-        correct_nids = (output.argmax(dim=1)[idx_test]==labels[idx_test]).nonzero().flatten()   # return a tensor
-        acc_test =accuracy(output[idx_test], labels[idx_test])
+        correct_nids = (output.argmax(dim=1)[idx_test] == labels[idx_test]).nonzero().flatten()  # return a tensor
+        acc_test = accuracy(output[idx_test], labels[idx_test])
         # torch.cuda.empty_cache()
-        return acc_test,correct_nids
-
-# %%
+        return acc_test, correct_nids

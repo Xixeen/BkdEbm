@@ -40,12 +40,14 @@ python run_node_exps.py  --model GCN\
                          --num_workers 5\
                          --num_mali 1\
                          --epoch_backdoor 0\
-                         --trigger_size 5\
+                         --trigger_size 3\
                          --trigger_type renyi\
                          --trigger_position random\
-                         --poisoning_intensity 0.4\
+                         --poisoning_intensity 0.1\
                          --overlapping_rate 0.0\
                          --device_id 1\
+                         --is_energy 0\
+                         --energy_epochs 100\
                          --inner_epochs 200
 ```
 

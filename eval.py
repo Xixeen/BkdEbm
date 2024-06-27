@@ -138,7 +138,7 @@ def visualize_all_energies_kde(client_energies, client_ids, is_malicious, save_p
     plt.show()
     plt.close()
 
-def visualize_combined_energies_kde_clean(client_energies, client_ids, is_malicious, agg_method, poisoning_intensity, save_path='./visualization/', figsize=(10, 6)):
+def visualize_combined_energies_kde_clean(args,client_energies, client_ids, is_malicious, agg_method, poisoning_intensity, save_path='./visualization/', figsize=(10, 6)):
     plt.figure(figsize=figsize)
 
     for i, energies in enumerate(client_energies):
@@ -152,7 +152,7 @@ def visualize_combined_energies_kde_clean(client_energies, client_ids, is_malici
                  color='red' if is_malicious[i] else 'green')
 
     # 更新标题以包含额外信息
-    plt.title(f'Combined KDE of All Clients\nAggregation Method: {agg_method}, Poisoning Intensity: {poisoning_intensity}')
+    plt.title(f'Combined KDE of All Clients\n Aggregation Method: {agg_method}, Poisoning Intensity: {poisoning_intensity}')
     plt.xlabel('Energy')
     plt.ylabel('Density')
     plt.grid(True)
@@ -168,7 +168,7 @@ def visualize_combined_energies_kde_clean(client_energies, client_ids, is_malici
     print(f"Saved combined KDE plot to {full_path}")
     plt.show()
     plt.close()
-def visualize_combined_energies_kde(client_energies, client_ids, is_malicious, agg_method, poisoning_intensity, save_path='./visualization/', figsize=(10, 6)):
+def visualize_combined_energies_kde(args,client_energies, client_ids, is_malicious, agg_method, poisoning_intensity, save_path='./visualization/', figsize=(10, 6)):
     plt.figure(figsize=figsize)
 
     for i, energies in enumerate(client_energies):
@@ -182,7 +182,10 @@ def visualize_combined_energies_kde(client_energies, client_ids, is_malicious, a
                  color='red' if is_malicious[i] else 'green')
 
     # 更新标题以包含额外信息
-    plt.title(f'Combined KDE of All Clients\nAggregation Method: {agg_method}, Poisoning Intensity: {poisoning_intensity}')
+    #if args.is_energy:
+    #    plt.title(f'Combined KDE of All Clients\ninner_epochs: {args.inner_epochs}, Poisoning Intensity: {poisoning_intensity}')
+    #else:
+    plt.title(f'Combined KDE of All Clients\n Seed: {args.seed}, inner_epochs: {args.inner_epochs}, energy_epochs: {args.energy_epochs}\n Poisoning Intensity: {poisoning_intensity}  is_energy: {args.is_energy}')
     plt.xlabel('Energy')
     plt.ylabel('Density')
     plt.grid(True)
@@ -198,6 +201,50 @@ def visualize_combined_energies_kde(client_energies, client_ids, is_malicious, a
     print(f"Saved combined KDE plot to {full_path}")
     plt.show()
     plt.close()
+
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import gaussian_kde
+
+def visualize_combined_energies_kde_exp(args, client_energies, client_ids, is_malicious, agg_method, poisoning_intensity, save_path='./visualization/', figsize=(10, 6)):
+    plt.figure(figsize=figsize)
+
+    for i, energies in enumerate(client_energies):
+        # 检查并修正数据
+        if np.std(energies) < 1e-10:
+            energies += np.random.normal(0, 1e-8, size=len(energies))  # 增加噪声幅度
+
+        # 尝试使用不同的带宽方法
+        try:
+            kde = gaussian_kde(energies, bw_method='silverman')
+        except np.linalg.LinAlgError:
+            # 如果默认方法失败，尝试增大带宽
+            kde = gaussian_kde(energies, bw_method=0.5)  # 增大带宽
+
+        min_energy = np.min(energies)
+        max_energy = np.max(energies)
+        x = np.linspace(min_energy, max_energy, 1000)
+        density = kde(x)
+        plt.plot(x, density, label=f'Client {client_ids[i]} {"(Malicious)" if is_malicious[i] else "(Normal)"}', color='red' if is_malicious[i] else 'green')
+
+    plt.title(f'Combined KDE of All Clients\n Seed: {args.seed}, inner_epochs: {args.inner_epochs}, energy_epochs: {args.energy_epochs}, Poisoning Intensity: {poisoning_intensity}')
+    plt.xlabel('Energy')
+    plt.ylabel('Density')
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+
+    # 确保保存路径存在
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    full_path = os.path.join(save_path, "all_clients_energy_kde.png")
+    plt.savefig(full_path)
+    print(f"Saved combined KDE plot to {full_path}")
+    plt.show()
+    plt.close()
+
+
 def visualize_all_energies(client_energies, client_ids, is_malicious, figsize=(20, 6)):
     num_clients = len(client_ids)
     plt.figure(figsize=figsize)

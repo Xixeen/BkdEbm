@@ -30,7 +30,9 @@ def args_parser():
                         help='Number of epochs to train benign and backdoor model.')
     parser.add_argument('--trojan_epochs', type=int, default=400, help='Number of epochs to train trigger generator.')
     parser.add_argument('--inner', type=int, default=1, help='Number of inner')
-
+    parser.add_argument('--is_energy', type=int, default=0, help='Whether to initiate energy calibration')
+    parser.add_argument('--energy_weight', type=float, default=0.1, help='Whether to initiate energy calibration')
+    parser.add_argument('--energy_epochs', type=int, default=30, help='Whether to initiate energy calibration')
     # backdoor setting
     parser.add_argument('--lr', type=float, default=0.01,
                         help='Initial learning rate.')

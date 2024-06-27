@@ -16,7 +16,8 @@ from Node_level_Models.helpers.func_utils import prune_unrelated_edge,prune_unre
 from Node_level_Models.data.datasets import  ogba_data,Amazon_data,Coauthor_data
 from eval import plot_energy_distribution, visualize_energies, EnergyModel, visualize_energies_kde, \
     visualize_all_energies, min_max_normalize, visualize_with_tsne, visualize_all_energies_kde, \
-    visualize_combined_energies_kde, visualize_all_energies_kde_clean, visualize_combined_energies_kde_clean
+    visualize_combined_energies_kde, visualize_all_energies_kde_clean, visualize_combined_energies_kde_clean, \
+    visualize_combined_energies_kde_exp
 from helperFunction import _aug_random_edge
 from select_models_by_energy import select_models_based_on_energy, record_client_energies_js, \
     record_client_energies_ks
@@ -200,7 +201,6 @@ def main(args, logger):
             raise NameError
         Backdoor_model_list.append(Backdoor_model)
 
-
     print('======================Start Preparing the Trigger Posistion========================================')
     client_idx_attach = []
     for i in range(args.num_workers):
@@ -307,6 +307,7 @@ def main(args, logger):
         client_induct_edge_index = []
         client_induct_edge_weights = []
         # worker results
+
         worker_results = {}
         for i in range(args.num_workers):
             worker_results[f"client_{i}"] = {"train_loss": None, "train_acc": None, "val_loss": None, "val_acc": None}
@@ -337,12 +338,39 @@ def main(args, logger):
                         augmented_poison_edge_indices[j].to(device),  # aug_edge_index
                         augmented_poison_edge_weights[j].to(device),  # aug_edge_weight
                         args.inner_epochs,  # train_iters
+                        args,
                         verbose=False,  # verbose
                     )
                     print("Malicious client: {} ,Acc train: {:.4f}, Acc val: {:.4f}".format(j,acc_train,acc_val))
+
+
                     induct_edge_index = torch.cat([client_poison_edge_index[j].to(device), client_mask_edge_index[j].to(device)], dim=1)
                     induct_edge_weights = torch.cat(
                         [client_poison_edge_weights[j], torch.ones([client_mask_edge_index[j].shape[1]], dtype=torch.float, device=device)])
+                    if args.is_energy:
+
+                        for k in range(args.energy_epochs):
+                            model_list[j].adjust_bn_layers(client_poison_x[j].to(device), #features
+                                                           client_poison_edge_index[j].to(device),#edge_index
+                                                           client_poison_edge_weights[j].to(device), #edge_weight
+                                                           augmented_poison_edge_indices[j].to(device), #aug_edge_index
+                                                           augmented_poison_edge_weights[j].to(device))#aug_edge_weight
+                        _,_,acc_train, acc_val = model_list[j]._train_with_val(
+                            global_model,  # global_model
+                            client_poison_x[j].to(device),  # features
+                            client_poison_labels[j].to(device),  # labels
+                            client_bkd_tn_nodes[j].to(device),  # idx_train (注意: 这里假设你的client_bkd_tn_nodes代表训练索引)
+                            client_idx_val[j].to(device),  # idx_val
+                            client_poison_edge_index[j].to(device),  # edge_index
+                            client_poison_edge_weights[j].to(device),  # edge_weight
+                            augmented_poison_edge_indices[j].to(device),  # aug_edge_index
+                            augmented_poison_edge_weights[j].to(device),  # aug_edge_weight
+                            1,  # train_iters
+                            args,
+                            verbose=False,  # verbose
+                        )
+                        print("Energy:Malicious client: {} ,Acc train: {:.4f}, Acc val: {:.4f}".format(j,acc_train,acc_val))
+
                 else:
                     #client_train_edge_index
                     train_edge_weights = torch.ones([client_train_edge_index[j].shape[1]]).to(device)
@@ -366,8 +394,8 @@ def main(args, logger):
                         augmented_clean_edge_indices[j].to(device),  # aug_edge_index
                         augmented_clean_edge_weights[j].to(device),  # aug_edge_weight
                         args.inner_epochs,  # train_iters
+                        args,
                         verbose=False,  # verbose
-                         # args
                     )
                     print("Clean client: {} ,Acc train: {:.4f}, Acc val: {:.4f}".format(j, acc_train, acc_val))
                     induct_x, induct_edge_index, induct_edge_weights = client_data[j].x, client_data[j].edge_index, client_data[j].edge_weight
@@ -375,6 +403,25 @@ def main(args, logger):
                     #                                client_data[j].edge_weight.to(device), client_data[j].y.to(device),
                     #                                client_idx_clean_test[j].to(device))
                 # 记录结果和能量数据
+                    if args.is_energy:
+                        for k in range(args.energy_epochs):
+                            model_list[j].adjust_bn_layers(client_data[j].x.to(device), client_train_edge_index[j].to(device),train_edge_weights.to(device), augmented_clean_edge_indices[j].to(device), augmented_clean_edge_weights[j].to(device))
+                        _,_,acc_train, acc_val = model_list[j]._train_with_val(
+                            global_model,  # global_model
+                            client_data[j].x.to(device),  # features
+                            client_data[j].y.to(device),  # labels
+                            client_idx_train[j].to(device),  # idx_train
+                            client_idx_val[j].to(device),  # idx_val
+                            client_train_edge_index[j].to(device),  # edge_index
+                            train_edge_weights.to(device),  # edge_weight
+                            augmented_clean_edge_indices[j].to(device),  # aug_edge_index
+                            augmented_clean_edge_weights[j].to(device),  # aug_edge_weight
+                            1,  # train_iters
+                            args,
+                            verbose=False,  # verbose
+                        )
+                        print("Energy:Clean client: {} ,Acc train: {:.4f}, Acc val: {:.4f}".format(j, acc_train, acc_val))
+
                 wandb.log({
                     f"client_{j}/train_loss": loss_train,
                     f"client_{j}/train_acc": acc_train,
@@ -420,17 +467,21 @@ def main(args, logger):
             with torch.no_grad():
                 #energies = energy_model(data_x, data_edge_index, data_edge_weight)
                 #energies = energies.logsumexp(1).cpu().numpy()  # 将能量转换为NumPy数组
-                energies = model_list[client_id].forward_energy(data_x, data_edge_index, data_edge_weight)
-                #energies = model_list[client_id].forward_energy(data_x, data_edge_index, data_edge_weight).cpu().numpy()[0]
-                #normalized_energies = min_max_normalize(energies)  # 归一化处理
+                #energies = model_list[client_id].forward_energy(data_x, data_edge_index, data_edge_weight)
+                energies = model_list[client_id].forward_energy(data_x, data_edge_index, data_edge_weight).detach().cpu().numpy()
+
+
+                #energies = min_max_normalize(energies)  # 归一化处理
                 #client_energies.append(normalized_energies)
                 client_energies.append(energies)
 
             is_malicious.append(client_id in rs)
         # 调用更新后的可视化函数
         # visualize_all_energies_kde(client_energies, list(range(len(model_list))),is_malicious)
-        visualize_combined_energies_kde(client_energies, list(range(len(client_energies))), is_malicious,
-                                        args.agg_method, args.poisoning_intensity)
+        visualize_combined_energies_kde(args,client_energies, list(range(len(client_energies))), is_malicious,
+                                       args.agg_method, args.poisoning_intensity)
+        # visualize_combined_energies_kde_exp(args, client_energies, list(range(len(client_energies))), is_malicious,
+        #                                 args.agg_method, args.poisoning_intensity)
         # visualize_all_energies(client_energies, list(range(len(model_list))), is_malicious)
         # visualize_energies_kde(client_energies, list(range(len(model_list))), is_malicious)
         # visualize_with_tsne(client_energies, is_malicious)
@@ -453,17 +504,19 @@ def main(args, logger):
             with torch.no_grad():
                 #_, energies = energy_model(data_x, data_edge_index, data_edge_weight)
                 #energies = energies.logsumexp(1).cpu().numpy()  # 将能量转换为NumPy数组
-                energies = model_list[client_id].forward_energy(data_x, data_edge_index, data_edge_weight)
-                #energies = model_list[client_id].forward_energy(data_x, data_edge_index, data_edge_weight).cpu().numpy()[0]
-                #normalized_energies = min_max_normalize(energies)  # 归一化处理
+                #energies = model_list[client_id].forward_energy(data_x, data_edge_index, data_edge_weight)
+                energies = model_list[client_id].forward_energy(data_x, data_edge_index, data_edge_weight).detach().cpu().numpy()
+
+
+                #energies = min_max_normalize(energies)  # 归一化处理
                 #client_energies.append(normalized_energies)
                 client_energies.append(energies)
             is_malicious.append(client_id in rs)
 
         # 调用更新后的可视化函数
         # visualize_all_energies_kde_clean(client_energies, list(range(len(model_list))), is_malicious)
-        visualize_combined_energies_kde_clean(client_energies, list(range(len(client_energies))), is_malicious,
-                                              args.agg_method, args.poisoning_intensity)
+        # visualize_combined_energies_kde_clean(args,client_energies, list(range(len(client_energies))), is_malicious,
+        #                                       args.agg_method, args.poisoning_intensity)
         # visualize_all_energies_clean(client_energies, list(range(len(model_list))), is_malicious)
         # # wandb logger
             #logger.log(worker_results)
@@ -511,6 +564,7 @@ def main(args, logger):
         selected_models = [model_list[i] for i in selected_models_index]
         print("selected id", selected_models_index)
         print("args.inner_epochs", args.inner_epochs)
+        print("selected_Seed", args.seed)
         pdb.set_trace()
         #Aggregation
         if args.agg_method == "FedAvg":
