@@ -7,7 +7,7 @@ import wandb
 
 args = args_parser()
 rs = np.random.RandomState(args.seed)
-seeds = rs.randint(1000, size=5)
+seeds = rs.randint(200, size=5)
 
 
 project_name = [args.proj_name, args.proj_name+ "debug"]

@@ -7,7 +7,7 @@ def args_parser():
     parser.add_argument("--num_selected_models", type=int, default=5, help="num of clients randomly selected to participate in Federated Learning")
     parser.add_argument("--hidden_channels", type=int, default=32, help="size of GNN hidden layer")
     parser.add_argument("--learning_rate", type=float, default=0.01, help="learning rate for training")
-    parser.add_argument("--inner_epochs", type=int, default=1, help="epochs for training")
+    parser.add_argument("--inner_epochs", type=int, default=5, help="epochs for training")
     parser.add_argument('--device_id', type=int, default=0,  # ["iid","non-iid"]
                         help='device id')
     parser.add_argument('--model', type=str, default='GraphSage', help='model',
@@ -26,12 +26,12 @@ def args_parser():
     parser.add_argument('--target_class', type=int, default=0)
     parser.add_argument('--dropout', type=float, default=0.5,
                         help='Dropout rate (1 - keep probability).')
-    parser.add_argument('--epochs', type=int, default=200,
+    parser.add_argument('--epochs', type=int, default=100,
                         help='Number of epochs to train benign and backdoor model.')
     parser.add_argument('--trojan_epochs', type=int, default=400, help='Number of epochs to train trigger generator.')
     parser.add_argument('--inner', type=int, default=1, help='Number of inner')
     parser.add_argument('--is_energy', type=int, default=0, help='Whether to initiate energy calibration')
-    parser.add_argument('--energy_weight', type=float, default=0.1, help='Whether to initiate energy calibration')
+    parser.add_argument('--energy_weig ht', type=float, default=0.1, help='Whether to initiate energy calibration')
     parser.add_argument('--energy_epochs', type=int, default=30, help='Whether to initiate energy calibration')
     # backdoor setting
     parser.add_argument('--lr', type=float, default=0.01,
@@ -81,9 +81,9 @@ def args_parser():
     parser.add_argument('--epoch_backdoor', type=float, default= 0.0, choices=[0.0,0.05,0.1,0.2,0.3,0.4,0.5], help='from which epoch the malicious clients start backdoor attack')
     parser.add_argument('--proj_name', type=str, default="BkdFedGCN-rebuttal", help='wandb logger project name')
     # semi-settings
-    parser.add_argument('--ratio_training', type=float, default=0.4, help='labels of ratio of training')
+    parser.add_argument('--ratio_training', type=float, default=0.6, help='labels of ratio of training')
     parser.add_argument('--ratio_val', type=float, default=0.1, help='labels of ratio of val')
-    parser.add_argument('--ratio_testing', type=float, default=0.2, help='labels of ratio of testing')
+    parser.add_argument('--ratio_testing', type=float, default=0.1, help='labels of ratio of testing')
     #other federated algoritm  settings
     parser.add_argument('--agg_method', type=str, default="FedAvg",
                         help='Federated Algorithms')
@@ -97,6 +97,11 @@ def args_parser():
     parser.add_argument('--agg_num', type=int, default=1, help='aggregation number for multi-krum and bulyan')
     parser.add_argument('--excluded_num', type=int, default=1, help='excluded number for  bulyan')
     parser.add_argument('--excluded_ratio', type=float, default=0.2, help='excluded number for  bulyan')
+
+    parser.add_argument('--prop_layers', type=int, default=1, help='Server-side energy propagation')
+    parser.add_argument('--prop_alpha', type=float, default=0.1, help='Server-side energy propagation weight')
+    parser.add_argument('--is_test', type=int, default=0, help='Server-side energy propagation weight')
+
 
     args = parser.parse_args()
     return args

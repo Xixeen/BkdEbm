@@ -189,6 +189,7 @@ def subgraph(subset,edge_index, edge_attr = None, relabel_nodes: bool = False):
 
     :rtype: (:class:`LongTensor`, :class:`Tensor`)
     """
+
     device = edge_index.device
 
     node_mask = subset

@@ -1,5 +1,4 @@
 import torch.optim as optim
-from Node_level_Models.aggregators.aggregation import Energy
 from Node_level_Models.models.GCN import GCN
 
 

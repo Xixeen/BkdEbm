@@ -1,10 +1,13 @@
 import  random
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from Node_level_Models.helpers.func_utils import accuracy
 from copy import deepcopy
 import copy
+from scipy.linalg import svd
 
 def fed_avg(severe_model,local_models,args):
     #selected_models = random.sample(model_list, args.num_selected_models)
@@ -159,87 +162,6 @@ class EnergyModel(nn.Module):
         else:
             return torch.gather(logits, 1, y[:, None]), logits
 
-class Energy(nn.Module):
-    """Tent adapts a model by entropy minimization during testing.
-        Once tented, a model adapits itself by updating on every forward.
-        """
-
-    def __init__(self, model, optimizer, steps=1, episodic=False,
-                 buffer_size=10000, sgld_steps=20, sgld_lr=1, sgld_std=0.01, reinit_freq=0.05, feat_dim=50,
-                 device='cpu', path=None, logger=None):
-        super().__init__()
-        self.energy_model = EnergyModel(model)
-        self.replay_buffer = init_random_graph(buffer_size, feat_dim)  # Assuming buffer_size is the number of nodes
-        self.replay_buffer_old = deepcopy(self.replay_buffer)
-        self.optimizer = optimizer
-        self.steps = steps
-        assert steps > 0, "tent requires >= 1 step(s) to forward and update"
-        self.episodic = episodic
-
-        # 储存模型和优化器的初始状态
-        self.model_state, self.optimizer_state = copy_model_and_optimizer(self.energy_model, self.optimizer)
-
-        self.sgld_steps = sgld_steps
-        self.sgld_lr = sgld_lr
-        self.sgld_std = sgld_std
-        self.reinit_freq = reinit_freq
-
-        self.feat_dim = feat_dim  # Number of features per node
-
-        self.path = path
-        self.logger = logger
-        self.device = device
-
-        # Note: if the model is never reset, like for continual adaptation,
-        # then skipping the state copy would save memory
-        self.model_state, self.optimizer_state = \
-            copy_model_and_optimizer(self.energy_model, self.optimizer)
-        # 初始化计数器
-        self.forward_calls = 0
-
-    def compute_energy(self, x, edge_index, edge_weight=None):
-        """计算给定图数据的能量值。
-
-        参数:
-        x - 节点特征矩阵。
-        edge_index - 边索引。
-        edge_weight - 边权重，如果模型需要的话。
-
-        返回:
-        energy - 计算得到的能量值。
-        """
-        self.energy_model.eval()  # 确保模型处于评估模式
-        with torch.no_grad():  # 确保不会计算梯度
-            logits = self.energy_model(x, edge_index, edge_weight)
-            # 使用负的对数概率来表示能量
-            energy = -torch.log_softmax(logits, dim=1).mean()
-        return energy
-    def forward(self, x, edge_index, if_adapt=True):
-        if self.episodic:
-            self.reset()
-
-        # 更新forward方法的调用次数
-        self.forward_calls += 1
-        print(f'Forward method called {self.forward_calls} times')
-
-        if if_adapt:
-            for i in range(self.steps):
-                outputs = forward_and_adapt_graph(x, edge_index, self.energy_model, self.optimizer,
-                                                  self.replay_buffer, self.sgld_steps, self.sgld_lr, self.sgld_std,
-                                                  self.reinit_freq, self.feat_dim, x.device)
-        else:
-            self.energy_model.eval()
-            with torch.no_grad():
-                outputs = self.energy_model.classify(x, edge_index)
-
-        return outputs
-
-    def reset(self):
-        """Reset model and optimizer states for episodic adaptation."""
-        if self.model_state is None or self.optimizer_state is None:
-            raise Exception("cannot reset without saved model/optimizer state")
-        load_model_and_optimizer(self.energy_model, self.optimizer,
-                                 self.model_state, self.optimizer_state)
 
 def copy_model_and_optimizer(model, optimizer):
     """
@@ -256,87 +178,6 @@ def load_model_and_optimizer(model, optimizer, model_state, optimizer_state):
     model.load_state_dict(model_state)
     optimizer.load_state_dict(optimizer_state)
 
-def init_random_graph(num_nodes, feat_dim):
-    """
-    初始化图数据的节点特征。
-    num_nodes: 图中的节点数量
-    feat_dim: 每个节点的特征维度
-    返回: 随机初始化的节点特征张量
-    """
-    return torch.FloatTensor(num_nodes, feat_dim).uniform_(-1, 1)
-
-def sample_p_0_graph(reinit_freq, replay_buffer, num_nodes, feat_dim, device):
-    """
-    生成或从重放缓冲中抽取图节点的特征。
-    reinit_freq: 重新初始化（生成新随机样本）的频率
-    replay_buffer: 存储旧样本的缓冲区
-    batch_size: 一批中节点的数量
-    feat_dim: 节点特征的维度
-    device: 将数据移动到指定设备
-    返回: 节点特征及其在缓冲区中的索引
-    """
-    if len(replay_buffer) == 0:
-        return init_random_graph(num_nodes, feat_dim).to(device), []
-    buffer_size = len(replay_buffer)
-    inds = torch.randint(0, buffer_size, (num_nodes,))  # Randomly select indices from the replay buffer
-    buffer_samples = replay_buffer[inds]  # Get samples from replay buffer based on indices
-    random_samples = init_random_graph(num_nodes, feat_dim)  # Generate random samples
-    choose_random = (torch.rand(num_nodes) < reinit_freq).float()[:, None]  # Decide whether to use random samples
-    samples = choose_random * random_samples + (1 - choose_random) * buffer_samples  # Combine samples
-    return samples.to(device), inds
-
-def sample_q_graph(f, replay_buffer, n_steps, sgld_lr, sgld_std, reinit_freq, num_nodes, feat_dim, device, y=None):
-    """
-    这个函数现在处理图数据的特性，对节点特征进行SGLD采样。
-    """
-    n = 0
-    f.eval()
-    # 获取批量大小
-    bs = num_nodes if y is None else y.size(0)
-    # 生成初始样本和这些样本的缓冲区索引
-    init_sample, buffer_inds = sample_p_0_graph(reinit_freq=reinit_freq, replay_buffer=replay_buffer, batch_size=bs,
-                                                feat_dim=feat_dim, device=device)
-    init_samples = deepcopy(init_sample)
-    x_k = torch.autograd.Variable(init_sample, requires_grad=True)
-
-    # 执行SGLD
-    for k in range(n_steps):
-        print(f'entering {n}')
-        n += 1
-        f_prime = torch.autograd.grad(f(x_k, y=y)[0].sum(), [x_k], retain_graph=True)[0]
-        x_k.data += sgld_lr * f_prime + sgld_std * torch.randn_like(x_k)
-    f.train()
-    final_samples = x_k.detach()
-
-    # 更新重放缓冲区
-    if len(replay_buffer) > 0:
-        replay_buffer[buffer_inds] = final_samples.cpu()
-
-    return final_samples, init_samples.detach()
-
-def forward_and_adapt_graph(x, energy_model, optimizer, replay_buffer, sgld_steps, sgld_lr, sgld_std, reinit_freq, feat_dim, device, if_cond=False, n_classes=10):
-    batch_size = x.shape[0]
-
-    if if_cond:
-        # 假设条件采样依赖于节点类别，这里我们随机生成一些类别标签
-        y = torch.randint(0, n_classes, (batch_size,)).to(device)
-        x_fake, _ = sample_q_graph(energy_model, replay_buffer, n_steps=sgld_steps, sgld_lr=sgld_lr, sgld_std=sgld_std, reinit_freq=reinit_freq, num_nodes=batch_size, feat_dim=feat_dim, device=device, y=y)
-    else:
-        # 无条件采样，不依赖于任何外部条件
-        x_fake, _ = sample_q_graph(energy_model, replay_buffer, n_steps=sgld_steps, sgld_lr=sgld_lr, sgld_std=sgld_std, reinit_freq=reinit_freq, num_nodes=batch_size, feat_dim=feat_dim, device=device)
-
-    # 测量能量
-    energy_real = energy_model(x)[0].mean()
-    energy_fake = energy_model(x_fake)[0].mean()
-
-    # 适应性调整
-    loss = (- (energy_real - energy_fake))
-    loss.backward()
-    optimizer.step()
-    optimizer.zero_grad()
-    outputs = energy_model.classify(x)
-
-    return outputs
 
 def update_local(model,server_control, client_control, global_model,
                  features, edge_index, edge_weight, labels, idx_train,
@@ -577,5 +418,225 @@ def fed_bulyan(global_model, client_models, args):
         new_stacked = torch.cat([temp, -pos_largest, neg_smallest], dim=0).sum(dim=0).float()
         new_stacked /= len(temp) - 2 * excluded_num
         global_param.data = new_stacked
+
+    return global_model
+from sklearn.metrics.pairwise import cosine_similarity
+from torch_geometric.utils import degree
+from torch_sparse import SparseTensor, matmul
+
+def pad_sequences(sequences, maxlen=None, dtype='float32', padding='post', truncating='post', value=0.0):
+    """将序列填充到同一长度"""
+    lengths = [len(seq) for seq in sequences]
+    if maxlen is None:
+        maxlen = max(lengths)
+    sample_shape = np.asarray(sequences[0]).shape[1:]
+    padded_sequences = np.full((len(sequences), maxlen) + sample_shape, value, dtype=dtype)
+    for idx, seq in enumerate(sequences):
+        if len(seq) > maxlen:
+            if truncating == 'post':
+                truncated = seq[:maxlen]
+            elif truncating == 'pre':
+                truncated = seq[-maxlen:]
+            else:
+                raise ValueError(f'Truncating type "{truncating}" not understood')
+            padded_sequences[idx, :len(truncated)] = truncated
+        else:
+            if padding == 'post':
+                padded_sequences[idx, :len(seq)] = seq
+            elif padding == 'pre':
+                padded_sequences[idx, -len(seq):] = seq
+            else:
+                raise ValueError(f'Padding type "{padding}" not understood')
+    return padded_sequences
+
+def compute_similarity_matrix(energies):
+    """计算能量之间的相似度矩阵"""
+    # 填充能量序列使其长度一致
+    padded_energies = pad_sequences(energies)
+    print("Padded energies shape:", padded_energies.shape)
+    print("Padded energies dtype:", padded_energies.dtype)
+    similarity_matrix = cosine_similarity(padded_energies)
+    return similarity_matrix
+
+def build_edge_index(similarity_matrix, threshold=0.5):
+    """根据相似度矩阵和阈值构建边索引"""
+    edge_index = []
+    for i in range(similarity_matrix.shape[0]):
+        for j in range(similarity_matrix.shape[1]):
+            if i != j and similarity_matrix[i, j] > threshold:
+                edge_index.append([i, j])
+    if len(edge_index) == 0:
+        return torch.empty(2, 0, dtype=torch.long)
+    edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
+    return edge_index
+
+def energy_propagation(energies, edge_index, prop_layers=1, alpha=0.5):
+    '''能量信念传播，返回传播后的能量'''
+    energies = pad_sequences(energies)  # 确保能量序列被填充
+    e = torch.tensor(energies).float()
+
+    if edge_index.numel() == 0:
+        print("Edge index is empty. Skipping propagation.")
+        return energies  # 如果 edge_index 为空，直接返回原始能量
+
+    N = e.shape[0]
+    row, col = edge_index
+    d = degree(col, N).float()
+    d_norm = 1. / d[col]
+    value = torch.ones_like(row) * d_norm
+    value = torch.nan_to_num(value, nan=0.0, posinf=0.0, neginf=0.0)
+    adj = SparseTensor(row=col, col=row, value=value, sparse_sizes=(N, N))
+    for _ in range(prop_layers):
+        e = e * alpha + matmul(adj, e) * (1 - alpha)
+    return e.cpu().numpy()
+
+
+def fed_EnergyBelief(global_model, selected_models, client_energies, args):
+    # 计算选定模型之间的相似度矩阵
+    similarity_matrix = compute_similarity_matrix(client_energies)
+
+    # 根据相似度矩阵和阈值构建边索引
+    edge_index = build_edge_index(similarity_matrix, threshold=0.5)
+
+    # 对选定模型的能量进行能量信念传播
+    propagated_energies = energy_propagation(client_energies, edge_index, prop_layers=args.prop_layers,
+                                             alpha=args.prop_alpha)
+
+    # 确保传播后的能量是一维数组
+    propagated_energies = np.mean(propagated_energies, axis=1)
+
+    # 反转能量值
+    inverted_energies = -propagated_energies
+
+    # 根据反转后的能量计算权重
+    weights = torch.softmax(torch.tensor(inverted_energies), dim=0).numpy()
+
+    # 确保权重是一维数组
+    if weights.ndim != 1 or len(weights) != len(selected_models):
+        raise ValueError(f"Invalid weights shape: {weights.shape}, expected shape: ({len(selected_models)},)")
+
+    # 初始化全局模型参数
+    global_params = global_model.state_dict()
+    for param_tensor in global_params.keys():
+        # 获取所有选定模型的当前参数
+        model_params = [model.state_dict()[param_tensor].cpu() for model in selected_models]
+
+        # 检查所有参数形状是否一致
+        shapes = [param.shape for param in model_params]
+        if not all(shape == shapes[0] for shape in shapes):
+            raise ValueError(f"Shape mismatch in parameter {param_tensor}: {shapes}")
+
+        # 计算加权平均值
+        avg = sum(param * weight for param, weight in zip(model_params, weights))
+        global_params[param_tensor].copy_(avg)
+
+    # 更新全局模型参数
+    global_model.load_state_dict(global_params)
+
+    return global_model
+
+
+def compute_cosine_similarities(local_models):
+    num_clients = len(local_models)
+    similarities = torch.zeros((num_clients, num_clients))
+
+    client_params = [torch.cat([param.view(-1) for param in model.parameters()]) for model in local_models]
+
+    for i in range(num_clients):
+        for j in range(num_clients):
+            if i != j:
+                similarities[i, j] = torch.nn.functional.cosine_similarity(client_params[i], client_params[j], dim=0)
+            else:
+                similarities[i, j] = 1.0
+
+    return similarities
+
+
+def compute_fools_gold_weights(similarities):
+    if isinstance(similarities, torch.Tensor):
+        similarities = similarities.detach().numpy()
+
+    num_clients = similarities.shape[0]
+    weights = np.ones(num_clients)
+
+    max_similarities = np.max(similarities, axis=1)
+
+    for i in range(num_clients):
+        if max_similarities[i] == 1.0:
+            weights[i] = 0.0
+        else:
+            weights[i] = 1.0 - max_similarities[i]
+
+    sum_weights = np.sum(weights)
+    if sum_weights == 0:
+        weights = np.ones(num_clients) / num_clients
+    else:
+        weights = weights / sum_weights
+
+    return weights
+
+
+def fools_gold(global_model, local_models, args):
+    similarities = compute_cosine_similarities(local_models)
+    weights = compute_fools_gold_weights(similarities)
+
+    global_state_dict = global_model.state_dict()
+    for name, param in global_state_dict.items():
+        aggregated_param = sum(
+            weight * local_model.state_dict()[name] for weight, local_model in zip(weights, local_models))
+        global_state_dict[name].copy_(aggregated_param)
+
+    global_model.load_state_dict(global_state_dict)
+    return global_model
+
+
+def fed_dnc(global_model, local_models, args,fraction_to_remove=0.1):
+    """
+    Divide-and-Conquer (DnC) 算法用于联邦学习中检测和移除离群点。
+
+    :param global_model: 全局模型
+    :param local_models: 各客户端的本地模型列表
+    :param fraction_to_remove: 要移除的最大投影向量的比例
+    :return: 更新后的全局模型
+    """
+
+    # 收集所有客户端的模型更新
+    model_updates = []
+    for model in local_models:
+        update = []
+        for param in model.parameters():
+            update.append(param.data.cpu().numpy().flatten())
+        model_updates.append(np.concatenate(update))
+
+    # 转换为矩阵形式
+    update_matrix = np.stack(model_updates)
+
+    # 对更新矩阵进行奇异值分解
+    U, S, Vt = svd(update_matrix, full_matrices=False)
+
+    # 计算每个模型更新在主成分方向上的投影
+    projections = np.dot(update_matrix, Vt[0])
+
+    # 计算要移除的更新数量
+    num_to_remove = int(fraction_to_remove * len(projections))
+
+    # 识别并移除最大投影的更新
+    indices_to_keep = np.argsort(np.abs(projections))[:-num_to_remove]
+
+    # 如果没有剩余的更新，则保留至少一个更新
+    if len(indices_to_keep) == 0:
+        indices_to_keep = np.argsort(np.abs(projections))[:1]
+
+    filtered_updates = update_matrix[indices_to_keep]
+
+    # 聚合剩余的模型更新
+    aggregated_update = np.mean(filtered_updates, axis=0)
+
+    # 更新全局模型
+    index = 0
+    for param in global_model.parameters():
+        length = param.data.numel()
+        param.data.copy_(torch.tensor(aggregated_update[index:index + length]).reshape(param.data.shape))
+        index += length
 
     return global_model

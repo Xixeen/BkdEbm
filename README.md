@@ -34,21 +34,134 @@ We consider the most widely studied GCN models:
 
 ###  Backdoor attack  in Federated GNNs
 ```
+conda activate BkdFedGNN
+cd data/MyBkdFedGCN
+
 python run_node_exps.py  --model GCN\
                          --dataset Cora\
                          --is_iid iid\
-                         --num_workers 5\
-                         --num_mali 1\
+                         --num_workers 10\
+                         --num_mali 3\
+                         --epochs 200\
                          --epoch_backdoor 0\
                          --trigger_size 3\
                          --trigger_type renyi\
                          --trigger_position random\
-                         --poisoning_intensity 0.1\
+                         --poisoning_intensity 0.3\
+                         --overlapping_rate 0.0\
+                         --device_id 0\
+                         --is_energy 1\
+                         --energy_epochs 100\
+                         --agg_method EnergyBelief\
+                         --prop_layers 1
+                         
+python run_node_exps.py  --model GCN\
+                         --dataset Cora\
+                         --is_iid iid\
+                         --num_workers 10\
+                         --num_mali 3\
+                         --epochs 200\
+                         --epoch_backdoor 0\
+                         --trigger_size 3\
+                         --trigger_type renyi\
+                         --trigger_position random\
+                         --poisoning_intensity 0.3\
                          --overlapping_rate 0.0\
                          --device_id 1\
                          --is_energy 0\
-                         --energy_epochs 100\
-                         --inner_epochs 200
+                         --energy_epochs 50\
+                         --agg_method FedOpt\
+                         --prop_layers 1                         
+
+python run_node_exps.py  --model GCN\
+                         --dataset Cora\
+                         --is_iid iid\
+                         --num_workers 10\
+                         --num_mali 3\
+                         --epochs 200\
+                         --epoch_backdoor 0\
+                         --trigger_size 3\
+                         --trigger_type renyi\
+                         --trigger_position random\
+                         --poisoning_intensity 0.3\
+                         --overlapping_rate 0.0\
+                         --device_id 1\
+                         --is_energy 0\
+                         --energy_epochs 50\
+                         --agg_method fed_median\
+                         --prop_layers 1   
+
+python run_node_exps.py  --model GCN\
+                         --dataset Cora\
+                         --is_iid iid\
+                         --num_workers 10\
+                         --num_mali 3\
+                         --epochs 200\
+                         --epoch_backdoor 0\
+                         --trigger_size 3\
+                         --trigger_type renyi\
+                         --trigger_position random\
+                         --poisoning_intensity 0.3\
+                         --overlapping_rate 0.0\
+                         --device_id 2\
+                         --is_energy 0\
+                         --energy_epochs 50\
+                         --agg_method FedAvg\
+                         --prop_layers 1   
+                         
+python run_node_exps.py  --model GCN\
+                         --dataset Cora\
+                         --is_iid iid\
+                         --num_workers 10\
+                         --num_mali 3\
+                         --epochs 200\
+                         --epoch_backdoor 0\
+                         --trigger_size 3\
+                         --trigger_type renyi\
+                         --trigger_position random\
+                         --poisoning_intensity 0.3\
+                         --overlapping_rate 0.0\
+                         --device_id 2\
+                         --is_energy 0\
+                         --energy_epochs 50\
+                         --agg_method fed_trimmedmean\
+                         --prop_layers 1                            
+                         
+python run_node_exps.py  --model GCN\
+                         --dataset Cora\
+                         --is_iid iid\
+                         --num_workers 10\
+                         --num_mali 3\
+                         --epochs 200\
+                         --epoch_backdoor 0\
+                         --trigger_size 3\
+                         --trigger_type renyi\
+                         --trigger_position random\
+                         --poisoning_intensity 0.3\
+                         --overlapping_rate 0.0\
+                         --device_id 3\
+                         --is_energy 0\
+                         --energy_epochs 50\
+                         --agg_method FedProx\
+                         --prop_layers 1  
+                         
+python run_node_exps.py  --model GCN\
+                         --dataset Cora\
+                         --is_iid iid\
+                         --num_workers 10\
+                         --num_mali 3\
+                         --epochs 200\
+                         --epoch_backdoor 0\
+                         --trigger_size 3\
+                         --trigger_type renyi\
+                         --trigger_position random\
+                         --poisoning_intensity 0.3\
+                         --overlapping_rate 0.0\
+                         --device_id 3\
+                         --is_energy 0\
+                         --energy_epochs 50\
+                         --agg_method fed_bulyan\
+                         --prop_layers 1                          
 ```
 
 ###  Backdoor attack  in Federated GNNs on other federated algorithms and defense methods

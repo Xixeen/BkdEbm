@@ -8,6 +8,10 @@ import torch.optim as optim
 from Node_level_Models.models.GCN import GCN
 import networkx as nx
 
+from helperFunction import set_random_seed
+from run_node_exps import args
+
+
 #%%
 class GradWhere(torch.autograd.Function):
     """
@@ -104,6 +108,7 @@ import numpy as np
 class Backdoor:
 
     def __init__(self,args, device):
+        set_random_seed(args.seed)
         self.args = args
         self.device = device
         self.weights = None
@@ -111,6 +116,8 @@ class Backdoor:
     
     def get_trigger_index(self,trigger_size,args):
         print("Start generating trigger by {}".format(args.trigger_type))
+        set_random_seed(args.seed)
+
         if args.trigger_type == "renyi":
             G_trigger = nx.erdos_renyi_graph(trigger_size, args.density, directed=False)
             if G_trigger.edges():
@@ -144,6 +151,8 @@ class Backdoor:
         return edge_index
 
     def get_trojan_edge(self,start, idx_attach, trigger_size):
+        set_random_seed(args.seed)
+
         edge_list = []
 
         for idx in idx_attach:
@@ -164,6 +173,8 @@ class Backdoor:
         return edge_index
         
     def inject_trigger(self, idx_attach, features,edge_index,edge_weight,device):
+        set_random_seed(args.seed)
+
         self.trojan = self.trojan.to(device)
         idx_attach = idx_attach.to(device)
         features = features.to(device)
@@ -198,6 +209,8 @@ class Backdoor:
         = features.to(self.device), edge_index.to(self.device), labels.to(self.device), idx_train.to(self.device), idx_attach.to(self.device),idx_unlabeled.to(self.device)
 
         args = self.args
+        set_random_seed(args.seed)
+
         if edge_weight is None:
             edge_weight = torch.ones([edge_index.shape[1]],device=self.device,dtype=torch.float)
         self.idx_attach = idx_attach
@@ -265,6 +278,7 @@ class Backdoor:
 
 
     def get_poisoned(self):
+        set_random_seed(args.seed)
 
         with torch.no_grad():
             poison_x, poison_edge_index, poison_edge_weights = self.inject_trigger(self.idx_attach,self.features,self.edge_index,self.edge_weights,self.device)

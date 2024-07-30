@@ -9,6 +9,10 @@ from tqdm import tqdm
 import metis
 
 import torch_geometric
+
+from helperFunction import set_random_seed
+
+
 def split_communities(data, clients):
     G = to_networkx(data, to_undirected=True, node_attrs=['x', 'y'])
     communities = sorted(nx.community.asyn_fluidc(G, clients, max_iter=5000, seed=12345))
@@ -118,6 +122,7 @@ def split_Random(args,data):
     :param clients:
     :return:
     """
+    set_random_seed(args.seed)
     args.drop_edge = 0
     ovlap = args.overlapping_rate
     drop_edge = args.drop_edge

@@ -11,6 +11,10 @@ from sklearn_extra import cluster
 from sklearn.cluster import KMeans
 import networkx as nx
 import dgl
+
+from helperFunction import set_random_seed
+
+
 def max_norm(data):
     _range = np.max(data) - np.min(data)
     return (data - np.min(data)) / _range
@@ -18,6 +22,8 @@ def max_norm(data):
 
 def obtain_attach_nodes(args, node_idxs, size):
     ### current random to implement
+    set_random_seed(args.seed)  # 为每个客户端的触发位置设置种子
+
     size = min(len(node_idxs), size)
     rs = np.random.RandomState(args.seed)
     choice = np.arange(len(node_idxs))

@@ -9,6 +9,8 @@ import torch.nn as nn
 from seaborn.external.kde import gaussian_kde
 from sklearn.manifold import TSNE
 
+import plotly.graph_objs as go
+
 from Node_level_Models.models.construct import model_construct
 
 
@@ -52,18 +54,7 @@ def visualize_energies_kde(client_energies, is_malicious, save_path='./visualiza
         plt.savefig(
             os.path.join(save_path, f'client_{i}_{"malicious" if is_malicious[i] else "normal"}_energy_kde.png'))
         plt.close()
-# def visualize_energies_kde(energies, client_id, is_malicious=False):
-#     plt.figure(figsize=(10, 6))
-#     sns.kdeplot(energies, fill=True, common_norm=False, palette="crest",
-#                 alpha=.5, linewidth=0, color='red' if is_malicious else 'blue')
-#     plt.title(f'Energy Distribution for Client {client_id} {"(Malicious)" if is_malicious else "(Normal)"}')
-#     plt.xlabel('Energy')
-#     plt.ylabel('Density')
-#     plt.grid(True)
-#
-#     filename = f"./visualization_kde/client_{client_id}_{'malicious' if is_malicious else 'normal'}_energy_distribution.png"
-#     plt.savefig(filename)
-#     plt.close()
+
 def visualize_energies(energies, client_id, is_malicious=False):
     # 使用matplotlib进行能量分布的直方图
     plt.figure(figsize=(10, 6))
@@ -168,8 +159,17 @@ def visualize_combined_energies_kde_clean(args,client_energies, client_ids, is_m
     print(f"Saved combined KDE plot to {full_path}")
     plt.show()
     plt.close()
-def visualize_combined_energies_kde(args,client_energies, client_ids, is_malicious, agg_method, poisoning_intensity, save_path='./visualization/', figsize=(10, 6)):
+
+
+def visualize_combined_energies_kde(args, client_energies, client_ids, is_malicious, agg_method, poisoning_intensity,
+                                    save_path='./visualization/', figsize=(10, 6)):
     plt.figure(figsize=figsize)
+
+    # 定义颜色列表，用于恶意客户端
+    malicious_colors = ['red', 'blue', 'purple', 'orange', 'brown', 'pink', 'gray', 'cyan', 'magenta', 'yellow']
+
+    # 记录恶意客户端颜色分配
+    malicious_color_map = {}
 
     for i, energies in enumerate(client_energies):
         # 计算 Kernel Density Estimate
@@ -177,15 +177,20 @@ def visualize_combined_energies_kde(args,client_energies, client_ids, is_malicio
         x = np.linspace(min(energies), max(energies), 1000)
         density = kde(x)
 
+        if is_malicious[i]:
+            # 为每个恶意客户端分配不同颜色
+            color = malicious_colors[len(malicious_color_map) % len(malicious_colors)]
+            malicious_color_map[client_ids[i]] = color
+        else:
+            color = 'green'
+
         # 绘制 KDE 曲线
         plt.plot(x, density, label=f'Client {client_ids[i]} {"(Malicious)" if is_malicious[i] else "(Normal)"}',
-                 color='red' if is_malicious[i] else 'green')
+                 color=color)
 
     # 更新标题以包含额外信息
-    #if args.is_energy:
-    #    plt.title(f'Combined KDE of All Clients\ninner_epochs: {args.inner_epochs}, Poisoning Intensity: {poisoning_intensity}')
-    #else:
-    plt.title(f'Combined KDE of All Clients\n Seed: {args.seed}, inner_epochs: {args.inner_epochs}, energy_epochs: {args.energy_epochs}\n Poisoning Intensity: {poisoning_intensity}  is_energy: {args.is_energy}')
+    plt.title(
+        f'Combined KDE of All Clients\n Seed: {args.seed}, inner_epochs: {args.inner_epochs}, energy_epochs: {args.energy_epochs}\n Poisoning Intensity: {poisoning_intensity}  is_energy: {args.is_energy}')
     plt.xlabel('Energy')
     plt.ylabel('Density')
     plt.grid(True)

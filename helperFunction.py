@@ -4,7 +4,19 @@ import numpy as np
 import scipy as sp
 import torch
 
-def aug_random_edge(input_adj, perturb_percent=0.2, drop_edge=True, add_edge=True, self_loop=True):
+def set_random_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+def aug_random_edge(input_adj, perturb_percent=0.2, drop_edge=True, add_edge=True, self_loop=True, seed=None):
+    if seed is not None:
+        set_random_seed(seed)
+
     aug_adj = copy.deepcopy(input_adj)
     nb_nodes = input_adj.shape[0]
     edge_index = (input_adj > 0).nonzero().t()
@@ -32,8 +44,6 @@ def aug_random_edge(input_adj, perturb_percent=0.2, drop_edge=True, add_edge=Tru
                 aug_adj[j][i] = 0
 
     node_list = [i for i in range(nb_nodes)]
-    # num_edge_to_add = int(nb_nodes * perturb_percent)
-
     add_list = []
     for i in range(nb_nodes):
         d = len(edge_dict[i])
@@ -56,7 +66,10 @@ def aug_random_edge(input_adj, perturb_percent=0.2, drop_edge=True, add_edge=Tru
 
 
 def _aug_random_edge(nb_nodes, edge_index, perturb_percent=0.2, drop_edge=True, add_edge=True, self_loop=True,
-                     use_avg_deg=True):
+                     use_avg_deg=True, seed=None):
+    if seed is not None:
+        set_random_seed(seed)
+
     total_edges = edge_index.shape[1]
     avg_degree = int(total_edges / nb_nodes)
 
@@ -73,7 +86,6 @@ def _aug_random_edge(nb_nodes, edge_index, perturb_percent=0.2, drop_edge=True, 
 
     if drop_edge:
         for i in range(nb_nodes):
-
             d = len(edge_dict[i])
             if use_avg_deg:
                 num_edge_to_drop = avg_degree
@@ -92,7 +104,6 @@ def _aug_random_edge(nb_nodes, edge_index, perturb_percent=0.2, drop_edge=True, 
 
     add_list = []
     for i in range(nb_nodes):
-
         if use_avg_deg:
             num_edge_to_add = avg_degree
         else:
@@ -107,7 +118,6 @@ def _aug_random_edge(nb_nodes, edge_index, perturb_percent=0.2, drop_edge=True, 
         for edge in add_list:
             u = edge[0]
             v = edge[1]
-
             edge_dict[u].add(v)
             edge_dict[v].add(u)
 
@@ -133,8 +143,6 @@ def _aug_random_edge(nb_nodes, edge_index, perturb_percent=0.2, drop_edge=True, 
     aug_edge_index = torch.tensor(aug_edge_index)
 
     return aug_edge_index
-
-
 def preprocess_features(features):
     """Row-normalize feature matrix and convert to tuple representation"""
     features = features.squeeze()
