@@ -1,3 +1,4 @@
+import pdb
 import  random
 
 import numpy as np
@@ -453,12 +454,12 @@ def compute_similarity_matrix(energies):
     """计算能量之间的相似度矩阵"""
     # 填充能量序列使其长度一致
     padded_energies = pad_sequences(energies)
-    print("Padded energies shape:", padded_energies.shape)
-    print("Padded energies dtype:", padded_energies.dtype)
+#    print("Padded energies shape:", padded_energies.shape)
+#    print("Padded energies dtype:", padded_energies.dtype)
     similarity_matrix = cosine_similarity(padded_energies)
     return similarity_matrix
 
-def build_edge_index(similarity_matrix, threshold=0.5):
+def build_edge_index(similarity_matrix, threshold=0.85):
     """根据相似度矩阵和阈值构建边索引"""
     edge_index = []
     for i in range(similarity_matrix.shape[0]):
@@ -496,7 +497,14 @@ def fed_EnergyBelief(global_model, selected_models, client_energies, args):
     similarity_matrix = compute_similarity_matrix(client_energies)
 
     # 根据相似度矩阵和阈值构建边索引
-    edge_index = build_edge_index(similarity_matrix, threshold=0.5)
+    edge_index = build_edge_index(similarity_matrix, threshold=args.tau)
+
+    # 计算每个客户端的传播权重（根据edge_index的个数）
+    propagation_weights = np.zeros(len(client_energies))
+    if edge_index.numel() > 0:
+        for i in range(len(client_energies)):
+            propagation_weights[i] = (edge_index[1] == i).sum().item()
+        propagation_weights /= propagation_weights.sum()  # 归一化传播权重
 
     # 对选定模型的能量进行能量信念传播
     propagated_energies = energy_propagation(client_energies, edge_index, prop_layers=args.prop_layers,
@@ -508,18 +516,28 @@ def fed_EnergyBelief(global_model, selected_models, client_energies, args):
     # 反转能量值
     inverted_energies = -propagated_energies
 
-    # 根据反转后的能量计算权重
-    weights = torch.softmax(torch.tensor(inverted_energies), dim=0).numpy()
+    # 根据反转后的能量和传播权重计算最终的聚合权重
+    combined_weights = inverted_energies * propagation_weights
+    combined_weights = torch.softmax(torch.tensor(combined_weights), dim=0).numpy()
 
-    # 确保权重是一维数组
-    if weights.ndim != 1 or len(weights) != len(selected_models):
-        raise ValueError(f"Invalid weights shape: {weights.shape}, expected shape: ({len(selected_models)},)")
+    # 检查是否有客户端与其他所有客户端的相似度都低于阈值，并排除这些客户端
+    excluded_clients = set()
+    for i, similarities in enumerate(similarity_matrix):
+        if np.all(similarities < args.tau):
+            excluded_clients.add(i)
+
+    # 确保权重是一维数组，排除恶意客户端
+    selected_models_filtered = [model for i, model in enumerate(selected_models) if i not in excluded_clients]
+    weights_filtered = [weight for i, weight in enumerate(combined_weights) if i not in excluded_clients]
+
+    if len(selected_models_filtered) != len(weights_filtered):
+        raise ValueError("Mismatch between filtered models and weights.")
 
     # 初始化全局模型参数
     global_params = global_model.state_dict()
     for param_tensor in global_params.keys():
         # 获取所有选定模型的当前参数
-        model_params = [model.state_dict()[param_tensor].cpu() for model in selected_models]
+        model_params = [model.state_dict()[param_tensor].cpu() for model in selected_models_filtered]
 
         # 检查所有参数形状是否一致
         shapes = [param.shape for param in model_params]
@@ -527,7 +545,7 @@ def fed_EnergyBelief(global_model, selected_models, client_energies, args):
             raise ValueError(f"Shape mismatch in parameter {param_tensor}: {shapes}")
 
         # 计算加权平均值
-        avg = sum(param * weight for param, weight in zip(model_params, weights))
+        avg = sum(param * weight for param, weight in zip(model_params, weights_filtered))
         global_params[param_tensor].copy_(avg)
 
     # 更新全局模型参数
